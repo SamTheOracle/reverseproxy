@@ -1,6 +1,6 @@
 FROM openjdk:8-jre-alpine
 
-ENV VERTICLE_FILE reverseproxy-1.0-SNAPSHOT.jar
+ENV VERTICLE_FILE reverseproxy-1.0-SNAPSHOT-fat.jar
 
 ENV VERTICLE_HOME /usr/verticles
 

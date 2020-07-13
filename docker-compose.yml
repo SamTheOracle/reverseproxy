@@ -1,0 +1,19 @@
+version: '2.3'
+
+services:
+  proxy:
+    container_name: localproxy
+    image: oracolo/proxy
+    mem_limit: 1000MB
+    ports:
+    - 7000:8080
+    environment:
+      - REDIS_DB_HOST=redis
+      - REDIS_DB_PORT=6379
+    depends_on:
+      - redis
+  redis:
+    container_name: proxy_redis
+    image: redis
+    ports:
+    - 6380:6379
