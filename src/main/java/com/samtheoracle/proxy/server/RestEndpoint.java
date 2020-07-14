@@ -83,7 +83,7 @@ public abstract class RestEndpoint extends AbstractVerticle {
     }
   }
 
-  protected Promise<HttpServer> createApiServer(int port, Router router) {
+  protected Promise<HttpServer> createServer(int port, Router router) {
     Promise<HttpServer> httpServerPromise = Promise.promise();
     vertx.createHttpServer().requestHandler(router)
       .listen(port, httpServerAsyncResult -> {
