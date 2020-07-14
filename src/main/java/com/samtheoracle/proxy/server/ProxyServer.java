@@ -2,6 +2,7 @@ package com.samtheoracle.proxy.server;
 
 import com.oracolo.database.builder.DatabaseServiceBuilder;
 import com.oracolo.database.builder.redis.RedisOptions;
+import com.oracolo.database.mongo.MongoAccessVerticle;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -169,11 +170,11 @@ public class ProxyServer extends RestEndpoint {
                 //put, post with body
                 if (body != null && !body.toString().isEmpty()) {
                     //send json object does not work...
-                    request.sendBuffer(body, httpResponseAsyncResult -> handleHttpResponse(httpServerResponse, httpResponseAsyncResult));
+                    request.sendBuffer(body, httpResponseAsyncResult -> handleHttpResponse(uri,httpServerResponse, httpResponseAsyncResult));
                 } else if (method == HttpMethod.GET) {
                     handleCachingGetRequest(uri, request, httpServerResponse, routingContext);
                 } else {
-                    request.send(httpResponseAsyncResult -> handleHttpResponse(httpServerResponse, httpResponseAsyncResult));
+                    request.send(httpResponseAsyncResult -> handleHttpResponse(uri,httpServerResponse, httpResponseAsyncResult));
                 }
             } else {
                 BadRequest("service with root " + root + " was not found", routingContext);
@@ -235,11 +236,12 @@ public class ProxyServer extends RestEndpoint {
                 );
     }
 
-    private void handleHttpResponse(HttpServerResponse serverResponse, AsyncResult<HttpResponse<Buffer>> httpResponseAsyncResult) {
+    private void handleHttpResponse(String uri, HttpServerResponse serverResponse, AsyncResult<HttpResponse<Buffer>> httpResponseAsyncResult) {
         if (httpResponseAsyncResult.succeeded()) {
             HttpResponse<Buffer> response = httpResponseAsyncResult.result();
             Buffer body = response.bodyAsBuffer();
             response.headers().forEach(header -> serverResponse.putHeader(header.getKey(), header.getValue()));
+            serverResponse.putHeader(HttpHeaderNames.LOCATION, ROOT_PATH + uri);
             if (body == null) {
                 serverResponse
                         .setStatusCode(response.statusCode())

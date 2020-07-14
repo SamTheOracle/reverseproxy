@@ -63,7 +63,6 @@ public class HealthChecksVerticle extends RestEndpoint {
                     startHealthCheck(healthCheckHandler);
                     startPromise.complete();
                 }).onFailure(startPromise::fail);
-
     }
 
     private void handleIncomingService(Message<JsonObject> objectMessage, HealthCheckHandler healthCheckHandler) {
