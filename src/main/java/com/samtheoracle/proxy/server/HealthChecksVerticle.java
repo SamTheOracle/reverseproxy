@@ -33,15 +33,13 @@ public class HealthChecksVerticle extends RestEndpoint {
     private static final String REDIS_KEY_SERVICES = Optional.ofNullable(System.getenv("REDIS_KEY_SERVICES")).orElse("http_endpoints");
     private static final int TIMEOUT_FAILURE = Integer.parseInt(Optional.ofNullable(System.getenv("TIMEOUT_FAILURE")).orElse("4"));
 
-    private final BiConsumer<WebClient, Promise<Status>> procedureFn = (webClient, promise) -> webClient.get("/ping").timeout(TIMEOUT_FAILURE * 1000).send(responseHandler -> {
+    private final BiConsumer<WebClient, Promise<Status>> procedureFn = (webClient, promise) -> webClient.get("/ping").send(responseHandler -> {
         if (responseHandler.succeeded()) {
             promise.tryComplete(Status.OK());
         } else {
             //if timeout is reached promise is already completed, so use try
             promise.tryComplete(Status.KO(new JsonObject().put("failedTime", LocalDateTime.now().toString())));
         }
-        ServiceDiscovery.releaseServiceObject(discovery, webClient);
-
     });
 
 
@@ -108,21 +106,17 @@ public class HealthChecksVerticle extends RestEndpoint {
                                         .collect(Collectors.toList());
                                 if (!recordsToEliminate.isEmpty()) {
                                     List<Promise<Void>> unPublishPromises = new ArrayList<>();
-
                                     recordsToEliminate.forEach(r -> {
-
                                         healthCheckHandler.unregister(r.getString("id"));
                                         Promise<Void> unPublishPromise = Promise.promise();
                                         discovery.unpublish(r.getString("id"), unPublishPromise);
                                         LOGGER.info("Service has been removed: " + r.getString("id"));
                                         unPublishPromises.add(unPublishPromise);
-
                                     });
                                     CompositeFuture compositeFuture = CompositeFuture.all(unPublishPromises.stream().map(Promise::future).collect(Collectors.toList()));
                                     compositeFuture.onFailure(Throwable::printStackTrace);
                                 }
                             }
-
                         }));
     }
 }

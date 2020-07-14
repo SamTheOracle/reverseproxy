@@ -62,7 +62,7 @@ class ProxyServerTest {
     @Test
     void postService(Vertx vertx, VertxTestContext testContext) {
         post(vertx, 8080, "/services", ResponsePredicate.SC_CREATED)
-                .sendBuffer(JsonObject.mapFrom(HttpEndpoint.createRecord("test_microservice", "localhost", 123, "/test")).toBuffer(), handler -> {
+                .sendBuffer(JsonObject.mapFrom(HttpEndpoint.createRecord("random", "localhost", 123, "/path")).toBuffer(), handler -> {
                     if (handler.succeeded()) {
                         testContext.completeNow();
                     } else {

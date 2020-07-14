@@ -171,62 +171,68 @@ public class ProxyServer extends RestEndpoint {
                     //send json object does not work...
                     request.sendBuffer(body, httpResponseAsyncResult -> handleHttpResponse(httpServerResponse, httpResponseAsyncResult));
                 } else if (method == HttpMethod.GET) {
-                    HashMap<String, String> hashMap = new HashMap<>();
-                    hashMap.put(HttpHeaderNames.CONTENT_TYPE.toString(), HttpHeaderValues.APPLICATION_JSON.toString());
-                    DatabaseServiceBuilder.redis()
-                            .findBuilder(vertx)
-                            .setOptions(CachedResponse.class)
-                            .find(uri)
-                            .future()
-                            .onSuccess(cacheResponse -> {
-                                LOGGER.info("Retrieving " + uri + " from redis");
-                                Ok(JsonObject.mapFrom(cacheResponse), hashMap, routingContext);
-                            })
-                            .onFailure(cause -> request.send(httpResponseAsyncResult -> {
-                                        if (httpResponseAsyncResult.succeeded()) {
-                                            HttpResponse<Buffer> response = httpResponseAsyncResult.result();
-                                            response.headers().forEach(header -> httpServerResponse.putHeader(header.getKey(), header.getValue()));
-                                            Buffer responseBody = response.body();
-                                            //send back result and cache in redis
-                                            if (httpResponseAsyncResult.result().statusCode() == HttpResponseStatus.OK.code()
-                                                    || httpResponseAsyncResult.result().statusCode() == HttpResponseStatus.NO_CONTENT.code()) {
-                                                CachedResponse cachedResponse = new CachedResponse(responseBody.toJson(), false);
-                                                JsonObject httpServerResponseJson = JsonObject.mapFrom(cachedResponse);
-                                                response.headers().forEach(entry -> httpServerResponse.putHeader(entry.getKey(), entry.getValue()));
-                                                int bytes = httpServerResponseJson.encode().getBytes().length;
-                                                httpServerResponse.putHeader(HttpHeaderNames.CONTENT_LENGTH, String.valueOf(bytes));
-                                                httpServerResponse
-                                                        .setStatusCode(response.statusCode())
-                                                        .end(httpServerResponseJson.toBuffer());
-                                                DatabaseServiceBuilder.redis()
-                                                        .insertBuilder(vertx)
-                                                        .setOptions(CachedResponse.class, new RedisOptions()
-                                                                .setCacheExpiration(60)
-                                                                .setKey(uri))
-                                                        .save(new CachedResponse(responseBody.toJson(), true))
-                                                        .future()
-                                                        .onSuccess(redis -> LOGGER.info("successfully cached get request " + uri))
-                                                        .onFailure(reason -> LOGGER.info("could not cache in redis " + reason.getMessage()));
-                                            } else {
-                                                httpServerResponse
-                                                        .setStatusCode(response.statusCode())
-                                                        .end(responseBody);
-                                            }
-                                            discovery.close();
-                                        }
-                                    })
-                            );
+                    handleCachingGetRequest(uri, request, httpServerResponse, routingContext);
                 } else {
                     request.send(httpResponseAsyncResult -> handleHttpResponse(httpServerResponse, httpResponseAsyncResult));
                 }
             } else {
                 BadRequest("service with root " + root + " was not found", routingContext);
                 discovery.close();
-                return;
             }
 
 
         });
+    }
+
+    private void handleCachingGetRequest(String uri, HttpRequest<Buffer> request, HttpServerResponse httpServerResponse, RoutingContext routingContext) {
+        HashMap<String, String> hashMap = new HashMap<>();
+        hashMap.put(HttpHeaderNames.CONTENT_TYPE.toString(), HttpHeaderValues.APPLICATION_JSON.toString());
+        DatabaseServiceBuilder.redis()
+                .findBuilder(vertx)
+                .setOptions(CachedResponse.class)
+                .find(uri)
+                .future()
+                .onSuccess(cacheResponse -> {
+                    LOGGER.info("Retrieving " + uri + " from redis");
+                    Ok(JsonObject.mapFrom(cacheResponse), hashMap, routingContext);
+                })
+                .onFailure(cause -> request.send(httpResponseAsyncResult -> {
+                            if (httpResponseAsyncResult.succeeded()) {
+                                HttpResponse<Buffer> response = httpResponseAsyncResult.result();
+                                response.headers().forEach(header -> httpServerResponse.putHeader(header.getKey(), header.getValue()));
+                                Buffer responseBody = response.body();
+                                //send back result and cache in redis
+                                if (httpResponseAsyncResult.result().statusCode() == HttpResponseStatus.OK.code()
+                                        || httpResponseAsyncResult.result().statusCode() == HttpResponseStatus.NO_CONTENT.code()) {
+                                    CachedResponse cachedResponse = new CachedResponse(responseBody.toJson(), false);
+                                    JsonObject httpServerResponseJson = JsonObject.mapFrom(cachedResponse);
+                                    response.headers().forEach(entry -> httpServerResponse.putHeader(entry.getKey(), entry.getValue()));
+                                    int bytes = httpServerResponseJson.encode().getBytes().length;
+                                    httpServerResponse.putHeader(HttpHeaderNames.CONTENT_LENGTH, String.valueOf(bytes));
+                                    httpServerResponse
+                                            .setStatusCode(response.statusCode())
+                                            .end(httpServerResponseJson.toBuffer());
+                                    LOGGER.info(httpServerResponseJson.encodePrettily());
+                                    DatabaseServiceBuilder.redis()
+                                            .insertBuilder(vertx)
+                                            .setOptions(CachedResponse.class, new RedisOptions()
+                                                    .setCacheExpiration(60)
+                                                    .setKey(uri))
+                                            .save(new CachedResponse(responseBody.toJson(), true))
+                                            .future()
+                                            .onSuccess(redis -> LOGGER.info("successfully cached get request " + uri))
+                                            .onFailure(reason -> LOGGER.info("could not cache in redis " + reason.getMessage()));
+                                } else {
+                                    httpServerResponse
+                                            .setStatusCode(response.statusCode())
+                                            .end(responseBody);
+                                }
+                            } else {
+                                BadRequest(httpResponseAsyncResult.cause().getMessage(), routingContext);
+                            }
+                            discovery.close();
+                        })
+                );
     }
 
     private void handleHttpResponse(HttpServerResponse serverResponse, AsyncResult<HttpResponse<Buffer>> httpResponseAsyncResult) {
