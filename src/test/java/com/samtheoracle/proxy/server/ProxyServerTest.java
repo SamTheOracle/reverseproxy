@@ -7,7 +7,6 @@ import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import io.vertx.ext.web.client.HttpRequest;
 import io.vertx.ext.web.client.HttpResponse;
 import io.vertx.ext.web.client.predicate.ResponsePredicate;
 import io.vertx.junit5.VertxExtension;
@@ -41,7 +40,7 @@ class ProxyServerTest {
                     return proxyServerPromise.future();
                 })
                 .compose(o -> {
-                    vertx.deployVerticle(new HealthChecksVerticle(), healthChecksPromise);
+                    vertx.deployVerticle(new HealthChecksServer(), healthChecksPromise);
                     return healthChecksPromise.future();
                 })
                 .compose(id -> {

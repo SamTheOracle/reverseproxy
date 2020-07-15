@@ -21,8 +21,8 @@ import java.util.function.BiConsumer;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
-public class HealthChecksVerticle extends RestEndpoint {
-    private final Logger LOGGER = Logger.getLogger(HealthChecksVerticle.class.getName());
+public class HealthChecksServer extends RestEndpoint {
+    private final Logger LOGGER = Logger.getLogger(HealthChecksServer.class.getName());
     private ServiceDiscovery discovery;
     private final static int PORT = 9000;
     private final static int HEARTBEAT = Integer.parseInt(Optional.ofNullable(System.getenv("HEALTHCHECK_HEARTBEAT")).orElse("10"));

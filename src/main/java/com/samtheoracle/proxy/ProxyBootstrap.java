@@ -1,7 +1,7 @@
 package com.samtheoracle.proxy;
 
 import com.oracolo.database.redis.RedisAccessVerticle;
-import com.samtheoracle.proxy.server.HealthChecksVerticle;
+import com.samtheoracle.proxy.server.HealthChecksServer;
 import com.samtheoracle.proxy.server.ProxyServer;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
@@ -29,7 +29,7 @@ public class ProxyBootstrap extends AbstractVerticle {
                 })
                 .compose(serverDeploy -> {
 
-                    vertx.deployVerticle(new HealthChecksVerticle(), healthChecksPromise);
+                    vertx.deployVerticle(new HealthChecksServer(), healthChecksPromise);
                     return healthChecksPromise.future();
                 })
                 .onSuccess(id -> startPromise.complete())

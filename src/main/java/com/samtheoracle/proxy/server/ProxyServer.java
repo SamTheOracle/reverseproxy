@@ -2,7 +2,6 @@ package com.samtheoracle.proxy.server;
 
 import com.oracolo.database.builder.DatabaseServiceBuilder;
 import com.oracolo.database.builder.redis.RedisOptions;
-import com.oracolo.database.mongo.MongoAccessVerticle;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -142,6 +141,7 @@ public class ProxyServer extends RestEndpoint {
                 .future()
                 .onSuccess(r -> {
                     LOGGER.info("correctly published");
+                    LOGGER.info(JsonObject.mapFrom(r).encodePrettily());
                     HashMap<String, String> headers = new HashMap<>();
                     headers.put(HttpHeaderNames.CONTENT_TYPE.toString(), HttpHeaderValues.APPLICATION_JSON.toString());
                     headers.put(HttpHeaderNames.LAST_MODIFIED.toString(), r.getMetadata().getString("creationDate"));
