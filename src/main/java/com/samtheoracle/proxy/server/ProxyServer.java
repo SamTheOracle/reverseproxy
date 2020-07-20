@@ -203,8 +203,7 @@ public class ProxyServer extends RestEndpoint {
                                 response.headers().forEach(header -> httpServerResponse.putHeader(header.getKey(), header.getValue()));
                                 Buffer responseBody = response.body();
                                 //send back result and cache in redis
-                                if (httpResponseAsyncResult.result().statusCode() == HttpResponseStatus.OK.code()
-                                        || httpResponseAsyncResult.result().statusCode() == HttpResponseStatus.NO_CONTENT.code()) {
+                                if (httpResponseAsyncResult.result().statusCode() == HttpResponseStatus.OK.code()) {
                                     CachedResponse cachedResponse = new CachedResponse(responseBody.toJson(), false);
                                     JsonObject httpServerResponseJson = JsonObject.mapFrom(cachedResponse);
                                     response.headers().forEach(entry -> httpServerResponse.putHeader(entry.getKey(), entry.getValue()));
