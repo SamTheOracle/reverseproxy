@@ -25,7 +25,7 @@ public class HealthChecksServer extends RestEndpoint {
     private final Logger LOGGER = Logger.getLogger(HealthChecksServer.class.getName());
     private ServiceDiscovery discovery;
     private final static int PORT = 9000;
-    private final static int HEARTBEAT = Integer.parseInt(Optional.ofNullable(System.getenv("HEALTHCHECK_HEARTBEAT")).orElse("10"));
+    private final static int HEARTBEAT = Integer.parseInt(Optional.ofNullable(System.getenv("HEARTBEAT")).orElse("10"));
     private final static String REDIS_DB_HOST = Optional.ofNullable(System.getenv("REDIS_DB_HOST"))
             .orElse("localhost");
     private final static int REDIS_DB_PORT = Integer.parseInt(Optional.ofNullable(System.getenv("REDIS_DB_PORT"))

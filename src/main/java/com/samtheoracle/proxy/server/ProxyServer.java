@@ -42,6 +42,7 @@ public class ProxyServer extends RestEndpoint {
     private static final String REDIS_KEY_SERVICES = Optional.ofNullable(System.getenv("REDIS_KEY_SERVICES")).orElse("http_endpoints");
     private static final String REDIS_DB_HOST = Optional.ofNullable(System.getenv("REDIS_DB_HOST")).orElse("localhost");
     private static final String REDIS_DB_PORT = Optional.ofNullable(System.getenv("REDIS_DB_PORT")).orElse("6379");
+    private static final int CACHE_MAX_AGE = Integer.parseInt(Optional.ofNullable(System.getenv("CACHE_MAX_AGE")).orElse("60"));
     private final Logger LOGGER = Logger.getLogger(ProxyServer.class.getName());
     private ServiceDiscovery discovery;
 
@@ -58,7 +59,9 @@ public class ProxyServer extends RestEndpoint {
         final HealthCheckHandler healthCheckHandler = HealthCheckHandler.create(vertx);
         final Router router = Router.router(vertx);
 
-        router.route().handler(CorsHandler.create(".*.").allowedHeader(HttpHeaderNames.CONTENT_TYPE.toString()));
+        router.route().handler(CorsHandler.create(".*.")
+                .allowedHeader(HttpHeaderNames.CONTENT_TYPE.toString())
+                .allowedHeader(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE.toString()));
         router.route().handler(BodyHandler.create());
         router.post("/services").handler(this::handleServiceCreation);
         router.get("/services").handler(this::handleGetServices);
@@ -160,14 +163,15 @@ public class ProxyServer extends RestEndpoint {
                     //send json object does not work...
                     LOGGER.info("Payload " + body.toString());
                     request.sendBuffer(body,
-                            httpResponseAsyncResult -> handleHttpResponse(uri, httpServerResponse, httpResponseAsyncResult));
+                            httpResponseAsyncResult -> handleHttpResponse(uri, httpServerResponse, httpResponseAsyncResult, webClient));
                 } else if (method == HttpMethod.GET) {
-                    handleCachingGetRequest(uri, request, httpServerResponse, routingContext);
+                    handleCachingGetRequest(uri, request, httpServerResponse, routingContext, webClient);
                 } else {
-                    request.send(httpResponseAsyncResult -> handleHttpResponse(uri, httpServerResponse, httpResponseAsyncResult));
+                    request.send(httpResponseAsyncResult -> handleHttpResponse(uri, httpServerResponse, httpResponseAsyncResult, webClient));
                 }
             } else {
                 BadRequest("service with root " + root + " was not found", routingContext);
+
                 //				discovery.close();
             }
 
@@ -175,7 +179,8 @@ public class ProxyServer extends RestEndpoint {
     }
 
     private void handleCachingGetRequest(String uri, HttpRequest<Buffer> request, HttpServerResponse httpServerResponse,
-                                         RoutingContext routingContext) {
+                                         RoutingContext routingContext, WebClient webClient) {
+
         HashMap<String, String> hashMap = new HashMap<>();
         hashMap.put(HttpHeaderNames.CONTENT_TYPE.toString(), HttpHeaderValues.APPLICATION_JSON.toString());
         DatabaseServiceBuilder.redis().findBuilder(vertx).setOptions(CachedResponse.class).find(uri).future().onSuccess(cacheResponse -> {
@@ -187,31 +192,38 @@ public class ProxyServer extends RestEndpoint {
                 response.headers().forEach(header -> httpServerResponse.putHeader(header.getKey(), header.getValue()));
                 Buffer responseBody = response.body();
                 //send back result and cache in redis
-                if (httpResponseAsyncResult.result().statusCode() == HttpResponseStatus.OK.code()) {
-                    CachedResponse cachedResponse = new CachedResponse(responseBody.toJson(), false);
-                    JsonObject httpServerResponseJson = JsonObject.mapFrom(cachedResponse);
-                    response.headers().forEach(entry -> httpServerResponse.putHeader(entry.getKey(), entry.getValue()));
-                    int bytes = httpServerResponseJson.encode().getBytes().length;
-                    httpServerResponse.putHeader(HttpHeaderNames.CONTENT_LENGTH, String.valueOf(bytes));
-                    httpServerResponse.setStatusCode(response.statusCode()).end(httpServerResponseJson.toBuffer());
+                int cacheAge = Math.min(Integer.parseInt(Optional.ofNullable(request.headers().get(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE)).orElse("0")), CACHE_MAX_AGE);
+                LOGGER.info("cache age " + cacheAge);
+                CachedResponse cachedResponse = new CachedResponse(responseBody.toJson(), false);
+                JsonObject httpServerResponseJson = JsonObject.mapFrom(cachedResponse);
+                int bytes = httpServerResponseJson.encode().getBytes().length;
+                httpServerResponse.putHeader(HttpHeaderNames.CONTENT_LENGTH, String.valueOf(bytes));
+                response.headers().entries().stream().filter(entry -> !HttpHeaderNames.CONTENT_LENGTH.toString().equals(entry.getKey())).forEach(entry -> httpServerResponse.putHeader(entry.getKey(), entry.getValue()));
+                if (httpResponseAsyncResult.result().statusCode() == HttpResponseStatus.OK.code() && cacheAge != 0) {
+                    httpServerResponse.setStatusCode(response.statusCode())
+                            .end(httpServerResponseJson.toBuffer());
+                    ServiceDiscovery.releaseServiceObject(discovery, webClient);
                     LOGGER.info(httpServerResponseJson.encodePrettily());
                     DatabaseServiceBuilder.redis().insertBuilder(vertx)
-                            .setOptions(CachedResponse.class, new RedisOptions().setCacheExpiration(60).setKey(uri))
+                            .setOptions(CachedResponse.class, new RedisOptions().setCacheExpiration(cacheAge).setKey(uri))
                             .save(new CachedResponse(responseBody.toJson(), true)).future()
                             .onSuccess(redis -> LOGGER.info("successfully cached get request " + uri))
                             .onFailure(reason -> LOGGER.info("could not cache in redis " + reason.getMessage()));
                 } else {
-                    httpServerResponse.setStatusCode(response.statusCode()).end(responseBody);
+                    httpServerResponse.setStatusCode(response.statusCode())
+                            .end(httpServerResponseJson.encode());
+                    ServiceDiscovery.releaseServiceObject(discovery, webClient);
                 }
             } else {
                 BadRequest(httpResponseAsyncResult.cause().getMessage(), routingContext);
+                ServiceDiscovery.releaseServiceObject(discovery, webClient);
             }
             //			discovery.close();
         }));
     }
 
     private void handleHttpResponse(String uri, HttpServerResponse serverResponse,
-                                    AsyncResult<HttpResponse<Buffer>> httpResponseAsyncResult) {
+                                    AsyncResult<HttpResponse<Buffer>> httpResponseAsyncResult, WebClient webClient) {
         if (httpResponseAsyncResult.succeeded()) {
             HttpResponse<Buffer> response = httpResponseAsyncResult.result();
             Buffer body = response.bodyAsBuffer();
@@ -226,6 +238,7 @@ public class ProxyServer extends RestEndpoint {
             LOGGER.info("Request " + uri + " failed\n" + httpResponseAsyncResult.cause().getMessage());
             serverResponse.setStatusCode(HttpResponseStatus.INTERNAL_SERVER_ERROR.code()).end();
         }
+        ServiceDiscovery.releaseServiceObject(discovery, webClient);
         //		discovery.close();
 
     }
