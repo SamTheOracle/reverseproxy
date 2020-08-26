@@ -1,5 +1,6 @@
 package com.samtheoracle.proxy.server;
 
+import com.samtheoracle.proxy.utils.SSLUtils;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Promise;
 import io.vertx.core.eventbus.Message;
@@ -80,7 +81,6 @@ public class HealthChecksServer extends RestEndpoint {
     }
 
     private void startHealthCheck(HealthCheckHandler healthCheckHandler) {
-
         discovery.getRecords(record -> true, handler -> {
             if (handler.succeeded()) {
                 List<Record> records = handler.result();
@@ -92,7 +92,7 @@ public class HealthChecksServer extends RestEndpoint {
         });
         //Start periodic check to services
         vertx.setPeriodic(HEARTBEAT * 1000,
-                handler -> WebClient.create(vertx)
+                handler -> WebClient.create(vertx, SSLUtils.sslWebClientOptions())
                         .get(PORT, "localhost", "/health")
                         .send(ar -> {
                             if (ar.succeeded() && ar.result().body() != null) {

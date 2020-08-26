@@ -63,6 +63,7 @@ public class ProxyServer extends RestEndpoint {
                 .allowedHeader(HttpHeaderNames.CONTENT_TYPE.toString())
                 .allowedHeader(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE.toString()));
         router.route().handler(BodyHandler.create());
+        router.get("/").handler(routingContext -> routingContext.response().putHeader(HttpHeaderNames.CONTENT_TYPE.toString(), HttpHeaderValues.TEXT_PLAIN).end("Welcome to ssl proxy!"));
         router.post("/services").handler(this::handleServiceCreation);
         router.get("/services").handler(this::handleGetServices);
         router.delete("/services").handler(routingContext -> handleDeleteAllServices(routingContext, healthCheckHandler));
@@ -79,6 +80,7 @@ public class ProxyServer extends RestEndpoint {
             routingContext.response().putHeader(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON)
                     .end(new JsonObject().put("message", "Reverse Proxy Routes").put("routes", j).encodePrettily());
         });
+
 
         createServer(PORT, router).future().onSuccess(httpServer -> {
             LOGGER.info("Server started on port " + httpServer.actualPort());
@@ -128,8 +130,7 @@ public class ProxyServer extends RestEndpoint {
     private void handleServiceCreation(RoutingContext routingContext) {
         JsonObject service = routingContext.getBodyAsJson();
         Record record = HttpEndpoint.createRecord(service.getString("name"), service.getJsonObject("location").getString("host"),
-                service.getJsonObject("location").getInteger("port"), service.getJsonObject("location").getString("root"));
-        record.setMetadata(new JsonObject().put("creationDate", LocalDateTime.now().toString()));
+                service.getJsonObject("location").getInteger("port"), service.getJsonObject("location").getString("root"), new JsonObject().put("creationDate", LocalDateTime.now().toString()));
         publishHttpEndPoint(record, discovery).future().onSuccess(r -> {
             LOGGER.info("correctly published");
             LOGGER.info(JsonObject.mapFrom(r).encodePrettily());
