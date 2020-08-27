@@ -1,6 +1,5 @@
 package com.samtheoracle.proxy.server;
 
-import com.samtheoracle.proxy.utils.SSLUtils;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
@@ -85,8 +84,7 @@ public abstract class RestEndpoint extends AbstractVerticle {
         }
     }
 
-    protected Promise<HttpServer> createServer(int port, Router router) {
-        HttpServerOptions httpServerOptions = SSLUtils.httpSSLServerOptions();
+    protected Promise<HttpServer> createServer(int port, Router router, HttpServerOptions httpServerOptions) {
         Promise<HttpServer> httpServerPromise = Promise.promise();
         vertx.createHttpServer(httpServerOptions).requestHandler(router)
                 .listen(port, httpServerAsyncResult -> {

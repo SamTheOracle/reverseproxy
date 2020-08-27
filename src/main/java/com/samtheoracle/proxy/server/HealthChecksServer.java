@@ -39,6 +39,9 @@ public class HealthChecksServer extends RestEndpoint {
             promise.tryComplete(Status.OK());
         } else {
             //if timeout is reached promise is already completed, so use try
+            if (responseHandler.cause() != null) {
+                responseHandler.cause().printStackTrace();
+            }
             promise.tryComplete(Status.KO(new JsonObject().put("failedTime", LocalDateTime.now().toString())));
         }
     });
@@ -52,7 +55,7 @@ public class HealthChecksServer extends RestEndpoint {
 
         vertx.eventBus().<JsonObject>consumer("vertx.discovery.announce").handler(event -> handleIncomingService(event, healthCheckHandler));
 
-        createServer(PORT, router)
+        createServer(PORT, router, SSLUtils.httpSSLServerOptionsHealthchecks())
                 .future()
                 .onSuccess(httpServer -> {
                     LOGGER.info("Deployed health checks verticles");
@@ -92,11 +95,11 @@ public class HealthChecksServer extends RestEndpoint {
         });
         //Start periodic check to services
         vertx.setPeriodic(HEARTBEAT * 1000,
-                handler -> WebClient.create(vertx, SSLUtils.sslWebClientOptions())
+                handler -> WebClient.create(vertx, SSLUtils.sslWebClientOptionsHealthchecks())
                         .get(PORT, "localhost", "/health")
                         .send(ar -> {
                             if (ar.succeeded() && ar.result().body() != null) {
-                                System.out.println(ar.result().body().toString());
+                                LOGGER.info(ar.result().body().toString());
                                 JsonObject statusList = ar.result().bodyAsJsonObject();
                                 JsonArray checks = statusList.getJsonArray("checks");
                                 List<JsonObject> recordsToEliminate = checks.stream()
@@ -114,6 +117,10 @@ public class HealthChecksServer extends RestEndpoint {
                                     });
                                     CompositeFuture compositeFuture = CompositeFuture.all(unPublishPromises.stream().map(Promise::future).collect(Collectors.toList()));
                                     compositeFuture.onFailure(Throwable::printStackTrace);
+                                }
+                            } else {
+                                if (ar.cause() != null) {
+                                    ar.cause().printStackTrace();
                                 }
                             }
                         }));

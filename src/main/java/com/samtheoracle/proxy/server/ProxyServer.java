@@ -2,6 +2,7 @@ package com.samtheoracle.proxy.server;
 
 import com.oracolo.database.builder.DatabaseServiceBuilder;
 import com.oracolo.database.builder.redis.RedisOptions;
+import com.samtheoracle.proxy.utils.SSLUtils;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -82,7 +83,7 @@ public class ProxyServer extends RestEndpoint {
         });
 
 
-        createServer(PORT, router).future().onSuccess(httpServer -> {
+        createServer(PORT, router, SSLUtils.httpSSLServerOptions()).future().onSuccess(httpServer -> {
             LOGGER.info("Server started on port " + httpServer.actualPort());
 
             this.discovery = ServiceDiscovery.create(vertx, new ServiceDiscoveryOptions().setBackendConfiguration(

@@ -11,6 +11,8 @@ COPY target/$VERTICLE_FILE  $VERTICLE_HOME/
 
 COPY proxy-keystore.jks $VERTICLE_HOME/
 
+COPY proxy-keystore-healthcheck.jks $VERTICLE_HOME/
+
 WORKDIR $VERTICLE_HOME
 
 ENTRYPOINT ["sh", "-c"]
