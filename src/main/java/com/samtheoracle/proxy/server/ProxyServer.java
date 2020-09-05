@@ -189,18 +189,19 @@ public class ProxyServer extends RestEndpoint {
             LOGGER.info("Retrieving " + uri + " from redis");
             Ok(JsonObject.mapFrom(cacheResponse), hashMap, routingContext);
         }).onFailure(cause -> request.send(httpResponseAsyncResult -> {
-            if (httpResponseAsyncResult.succeeded()) {
+            if (httpResponseAsyncResult.succeeded() && httpResponseAsyncResult.result().statusCode() == HttpResponseStatus.OK.code()) {
                 HttpResponse<Buffer> response = httpResponseAsyncResult.result();
                 response.headers().forEach(header -> httpServerResponse.putHeader(header.getKey(), header.getValue()));
                 Buffer responseBody = response.body();
                 //send back result and cache in redis
                 int cacheAge = Math.min(Integer.parseInt(Optional.ofNullable(request.headers().get(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE)).orElse("0")), CACHE_MAX_AGE);
                 LOGGER.info("cache age " + cacheAge);
+                //if responsobody is not a JSON string, it breaks
                 CachedResponse cachedResponse = new CachedResponse(responseBody.toJson(), false);
                 JsonObject httpServerResponseJson = JsonObject.mapFrom(cachedResponse);
                 int bytes = httpServerResponseJson.encode().getBytes().length;
+                response.headers().entries().forEach(entry -> httpServerResponse.putHeader(entry.getKey(), entry.getValue()));
                 httpServerResponse.putHeader(HttpHeaderNames.CONTENT_LENGTH, String.valueOf(bytes));
-                response.headers().entries().stream().filter(entry -> !HttpHeaderNames.CONTENT_LENGTH.toString().equals(entry.getKey())).forEach(entry -> httpServerResponse.putHeader(entry.getKey(), entry.getValue()));
                 if (httpResponseAsyncResult.result().statusCode() == HttpResponseStatus.OK.code() && cacheAge != 0) {
                     httpServerResponse.setStatusCode(response.statusCode())
                             .end(httpServerResponseJson.toBuffer());
@@ -216,8 +217,18 @@ public class ProxyServer extends RestEndpoint {
                             .end(httpServerResponseJson.encode());
                     ServiceDiscovery.releaseServiceObject(discovery, webClient);
                 }
+            } else if (httpResponseAsyncResult.succeeded()) {
+                JsonObject errorJson = new JsonObject()
+                        .put("status", httpResponseAsyncResult.result().statusCode())
+                        .put("error", httpResponseAsyncResult.result().body().toString());
+                httpServerResponse.setStatusCode(httpResponseAsyncResult.result().statusCode())
+                        .end(errorJson.encode());
+                ServiceDiscovery.releaseServiceObject(discovery, webClient);
             } else {
-                BadRequest(httpResponseAsyncResult.cause().getMessage(), routingContext);
+                JsonObject errorJson = new JsonObject()
+                        .put("status", HttpResponseStatus.INTERNAL_SERVER_ERROR.code())
+                        .put("error", httpResponseAsyncResult.result().body());
+                ServerError(errorJson.encode(), routingContext);
                 ServiceDiscovery.releaseServiceObject(discovery, webClient);
             }
             //			discovery.close();

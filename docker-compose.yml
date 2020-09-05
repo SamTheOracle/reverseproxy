@@ -10,6 +10,7 @@ services:
     environment:
       - REDIS_DB_HOST=redis
       - REDIS_DB_PORT=6379
+      - KEYSTORE_FILE_NAME=keystore.jks
     depends_on:
       - redis
   redis:

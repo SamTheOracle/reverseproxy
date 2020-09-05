@@ -7,11 +7,12 @@ ENV VERTICLE_HOME /usr/verticles
 EXPOSE 8080 9000
 
 
-COPY target/$VERTICLE_FILE  $VERTICLE_HOME/
 
-COPY proxy-keystore.jks $VERTICLE_HOME/
+COPY certificates/proxy-keystore-healthcheck.jks $VERTICLE_HOME/
 
-COPY proxy-keystore-healthcheck.jks $VERTICLE_HOME/
+COPY certificates/proxy-keystore-local.jks $VERTICLE_HOME/
+
+COPY certificates/keystore.jks  $VERTICLE_HOME/
 
 WORKDIR $VERTICLE_HOME
 

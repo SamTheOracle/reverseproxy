@@ -5,6 +5,7 @@ import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.ext.web.client.HttpRequest;
 import io.vertx.ext.web.client.WebClient;
+import io.vertx.ext.web.client.WebClientOptions;
 import io.vertx.ext.web.client.predicate.ResponsePredicate;
 
 public class TestUtilsWithSSL {
@@ -39,6 +40,14 @@ public class TestUtilsWithSSL {
     public static HttpRequest<Buffer> delete(Vertx vertx, int port, String uri, ResponsePredicate responsePredicate) {
         return WebClient.create(vertx, SSLUtils.sslWebClientOptions())
                 .delete(port, "localhost", uri)
+                .expect(responsePredicate)
+                .timeout(TIME * SCALE);
+    }
+
+    public static HttpRequest<Buffer> get(Vertx vertx, int port, String uri, ResponsePredicate responsePredicate, WebClientOptions sslOptions) {
+
+        return WebClient.create(vertx, sslOptions)
+                .get(port, "localhost", uri)
                 .expect(responsePredicate)
                 .timeout(TIME * SCALE);
     }

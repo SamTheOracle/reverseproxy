@@ -1,6 +1,7 @@
 package com.samtheoracle.proxy.server;
 
 import com.oracolo.database.redis.RedisAccessVerticle;
+import com.samtheoracle.proxy.utils.SSLUtils;
 import io.vertx.core.Promise;
 import io.vertx.core.Verticle;
 import io.vertx.core.Vertx;
@@ -82,7 +83,7 @@ class ProxyServerTest {
     @Test
     void testHealthProcedureIsUp(Vertx vertx, VertxTestContext testContext) {
 
-        TestUtilsWithSSL.get(vertx, 9000, "/health", ResponsePredicate.SC_OK)
+        TestUtilsWithSSL.get(vertx, 9000, "/health", ResponsePredicate.SC_OK, SSLUtils.sslWebClientOptionsHealthchecks())
                 .send(ar -> {
                     if (ar.succeeded()) {
                         JsonArray checks = ar.result().bodyAsJsonObject().getJsonArray("checks");

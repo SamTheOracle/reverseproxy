@@ -2,6 +2,7 @@ package com.samtheoracle.proxy.server;
 
 import com.samtheoracle.proxy.utils.SSLUtils;
 import io.vertx.core.CompositeFuture;
+import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonArray;
@@ -33,6 +34,7 @@ public class HealthChecksServer extends RestEndpoint {
             .orElse("6379"));
     private static final String REDIS_KEY_SERVICES = Optional.ofNullable(System.getenv("REDIS_KEY_SERVICES")).orElse("http_endpoints");
     private static final int TIMEOUT_FAILURE = Integer.parseInt(Optional.ofNullable(System.getenv("TIMEOUT_FAILURE")).orElse("4"));
+    private WebClient secureSSLHealthCheckClient;
 
     private final BiConsumer<WebClient, Promise<Status>> procedureFn = (webClient, promise) -> webClient.get("/ping").send(responseHandler -> {
         if (responseHandler.succeeded()) {
@@ -64,8 +66,14 @@ public class HealthChecksServer extends RestEndpoint {
                                     .put("host", REDIS_DB_HOST)
                                     .put("port", REDIS_DB_PORT)
                                     .put("key", REDIS_KEY_SERVICES)));
-                    startHealthCheck(healthCheckHandler);
-                    startPromise.complete();
+                    SSLUtils.createProxySSLOptions(vertx).future()
+                            .compose(webClientOptions -> {
+                                this.secureSSLHealthCheckClient = WebClient.create(vertx, webClientOptions);
+                                return Future.succeededFuture();
+                            }).onSuccess(aVoid -> {
+                        startHealthCheck(healthCheckHandler);
+                        startPromise.complete();
+                    }).onFailure(startPromise::fail);
                 }).onFailure(startPromise::fail);
     }
 
@@ -95,11 +103,10 @@ public class HealthChecksServer extends RestEndpoint {
         });
         //Start periodic check to services
         vertx.setPeriodic(HEARTBEAT * 1000,
-                handler -> WebClient.create(vertx, SSLUtils.sslWebClientOptionsHealthchecks())
-                        .get(PORT, "localhost", "/health")
+                handler -> secureSSLHealthCheckClient.get(PORT, "localhost", "/health")
                         .send(ar -> {
                             if (ar.succeeded() && ar.result().body() != null) {
-                                LOGGER.info(ar.result().body().toString());
+                                LOGGER.info("Checks results:\n" + ar.result().body().toJsonObject().encodePrettily());
                                 JsonObject statusList = ar.result().bodyAsJsonObject();
                                 JsonArray checks = statusList.getJsonArray("checks");
                                 List<JsonObject> recordsToEliminate = checks.stream()
