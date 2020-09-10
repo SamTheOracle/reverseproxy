@@ -231,7 +231,6 @@ public class ProxyServer extends RestEndpoint {
                 ServerError(errorJson.encode(), routingContext);
                 ServiceDiscovery.releaseServiceObject(discovery, webClient);
             }
-            //			discovery.close();
         }));
     }
 
@@ -252,7 +251,5 @@ public class ProxyServer extends RestEndpoint {
             serverResponse.setStatusCode(HttpResponseStatus.INTERNAL_SERVER_ERROR.code()).end();
         }
         ServiceDiscovery.releaseServiceObject(discovery, webClient);
-        //		discovery.close();
-
     }
 }

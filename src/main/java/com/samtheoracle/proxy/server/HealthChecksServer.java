@@ -45,6 +45,7 @@ public class HealthChecksServer extends RestEndpoint {
                 responseHandler.cause().printStackTrace();
             }
             promise.tryComplete(Status.KO(new JsonObject().put("failedTime", LocalDateTime.now().toString())));
+            ServiceDiscovery.releaseServiceObject(discovery, webClient);
         }
     });
 
