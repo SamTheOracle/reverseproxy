@@ -12,6 +12,8 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.servicediscovery.ServiceDiscovery;
+import io.vertx.servicediscovery.ServiceDiscoveryOptions;
 
 import java.util.Map;
 
@@ -95,6 +97,13 @@ public abstract class RestEndpoint extends AbstractVerticle {
                     }
                 });
         return httpServerPromise;
+    }
+
+    protected ServiceDiscovery createDiscovery(String redisHost, String redisPort, String redisEndpointsKey) {
+        return ServiceDiscovery.create(vertx, new ServiceDiscoveryOptions()
+                .setBackendConfiguration(new JsonObject().put("host", redisHost)
+                        .put("port", redisPort)
+                        .put("key", redisEndpointsKey)));
     }
 
 

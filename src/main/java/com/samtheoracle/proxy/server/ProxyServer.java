@@ -25,7 +25,6 @@ import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.servicediscovery.Record;
 import io.vertx.servicediscovery.ServiceDiscovery;
-import io.vertx.servicediscovery.ServiceDiscoveryOptions;
 import io.vertx.servicediscovery.types.HttpEndpoint;
 
 import java.time.LocalDateTime;
@@ -45,7 +44,6 @@ public class ProxyServer extends RestEndpoint {
     private static final String REDIS_DB_PORT = Optional.ofNullable(System.getenv("REDIS_DB_PORT")).orElse("6379");
     private static final int CACHE_MAX_AGE = Integer.parseInt(Optional.ofNullable(System.getenv("CACHE_MAX_AGE")).orElse("60"));
     private final Logger LOGGER = Logger.getLogger(ProxyServer.class.getName());
-    private ServiceDiscovery discovery;
 
     private static Promise<Record> publishHttpEndPoint(Record record, ServiceDiscovery discovery) {
         Promise<Record> recordPromise = Promise.promise();
@@ -85,10 +83,6 @@ public class ProxyServer extends RestEndpoint {
 
         createServer(PORT, router, SSLUtils.httpSSLServerOptions()).future().onSuccess(httpServer -> {
             LOGGER.info("Server started on port " + httpServer.actualPort());
-
-            this.discovery = ServiceDiscovery.create(vertx, new ServiceDiscoveryOptions().setBackendConfiguration(
-                    new JsonObject().put("host", REDIS_DB_HOST).put("port", REDIS_DB_PORT).put("key", REDIS_KEY_SERVICES)));
-
             LOGGER.info("deployed at port " + PORT + " with root path " + ROOT_PATH);
             startPromise.complete();
         }).onFailure(startPromise::fail);
@@ -98,7 +92,9 @@ public class ProxyServer extends RestEndpoint {
         Promise<List<Record>> recordsPromise = Promise.promise();
         List<Promise<Void>> unpublishPromises = new ArrayList<>();
 
+        ServiceDiscovery discovery = createDiscovery(REDIS_DB_HOST, REDIS_DB_PORT, REDIS_KEY_SERVICES);
         discovery.getRecords(record -> true, recordsPromise);
+
         recordsPromise.future().onSuccess(records -> records.forEach(record -> {
             Promise<Void> promise = Promise.promise();
             discovery.unpublish(record.getRegistration(), promise);
@@ -106,12 +102,20 @@ public class ProxyServer extends RestEndpoint {
             unpublishPromises.add(promise);
         }));
         CompositeFuture.all(unpublishPromises.stream().map(Promise::future).collect(Collectors.toList()))
-                .onSuccess(event -> NoContent(new HashMap<>(), routingContext))
-                .onFailure(cause -> ServerError(cause.getMessage(), routingContext));
+                .onComplete(cFutures -> {
+                    if (cFutures.succeeded()) {
+                        NoContent(new HashMap<>(), routingContext);
+                    } else {
+                        ServerError(cFutures.cause().getMessage(), routingContext);
+                    }
+                    discovery.close();
+                });
     }
 
     private void handleGetServices(RoutingContext routingContext) {
         Promise<List<Record>> promise = Promise.promise();
+        ServiceDiscovery discovery = createDiscovery(REDIS_DB_HOST, REDIS_DB_PORT, REDIS_KEY_SERVICES);
+
         discovery.getRecords(record -> true, ar -> {
             if (ar.succeeded() && !ar.result().isEmpty()) {
                 promise.complete(ar.result());
@@ -120,6 +124,7 @@ public class ProxyServer extends RestEndpoint {
             } else {
                 promise.fail(ar.cause());
             }
+            discovery.close();
         });
         promise.future().onSuccess(records -> {
             JsonArray jsonArray = new JsonArray();
@@ -133,6 +138,7 @@ public class ProxyServer extends RestEndpoint {
         Record record = HttpEndpoint.createRecord(service.getString("name"), service.getJsonObject("location").getString("host"),
                 service.getJsonObject("location").getInteger("port"), service.getJsonObject("location").getString("root"), new JsonObject().put("creationDate", LocalDateTime.now().toString()));
         Promise<Record> serviceAlreadyPresent = Promise.promise();
+        ServiceDiscovery discovery = createDiscovery(REDIS_DB_HOST, REDIS_DB_PORT, REDIS_KEY_SERVICES);
         discovery.getRecord(r -> r.getName().equals(record.getName()) && r.getLocation().getString("host").equals(record.getLocation().getString("host")), recordAsync -> {
             if (recordAsync.succeeded() && recordAsync.result() != null) {
                 serviceAlreadyPresent.complete(recordAsync.result());
@@ -142,6 +148,7 @@ public class ProxyServer extends RestEndpoint {
             } else {
                 serviceAlreadyPresent.fail(recordAsync.cause());
             }
+            discovery.close();
         });
         serviceAlreadyPresent.future()
                 .onSuccess(r -> {
@@ -166,7 +173,7 @@ public class ProxyServer extends RestEndpoint {
     }
 
     private void rerouteToService(RoutingContext routingContext, String root, String uri) {
-
+        ServiceDiscovery discovery = createDiscovery(REDIS_DB_HOST, REDIS_DB_PORT, REDIS_KEY_SERVICES);
         HttpEndpoint.getWebClient(discovery, record -> record.getLocation().getString("root").equals(root), webClientAsyncResult -> {
             if (webClientAsyncResult.succeeded()) {
                 WebClient webClient = webClientAsyncResult.result();
@@ -183,12 +190,11 @@ public class ProxyServer extends RestEndpoint {
                 if (body != null && !body.toString().isEmpty()) {
                     //send json object does not work...
                     LOGGER.info("Payload " + body.toString());
-                    request.sendBuffer(body,
-                            httpResponseAsyncResult -> handleHttpResponse(uri, httpServerResponse, httpResponseAsyncResult, webClient));
+                    request.sendBuffer(body, httpResponseAsyncResult -> handleHttpResponse(uri, httpServerResponse, httpResponseAsyncResult, webClient, discovery));
                 } else if (method == HttpMethod.GET) {
-                    handleCachingGetRequest(uri, request, httpServerResponse, routingContext, webClient);
+                    handleCachingGetRequest(uri, request, httpServerResponse, routingContext, webClient, discovery);
                 } else {
-                    request.send(httpResponseAsyncResult -> handleHttpResponse(uri, httpServerResponse, httpResponseAsyncResult, webClient));
+                    request.send(httpResponseAsyncResult -> handleHttpResponse(uri, httpServerResponse, httpResponseAsyncResult, webClient, discovery));
                 }
             } else {
                 BadRequest("service with root " + root + " was not found", routingContext);
@@ -200,7 +206,7 @@ public class ProxyServer extends RestEndpoint {
     }
 
     private void handleCachingGetRequest(String uri, HttpRequest<Buffer> request, HttpServerResponse httpServerResponse,
-                                         RoutingContext routingContext, WebClient webClient) {
+                                         RoutingContext routingContext, WebClient webClient, ServiceDiscovery discovery) {
 
         HashMap<String, String> hashMap = new HashMap<>();
         hashMap.put(HttpHeaderNames.CONTENT_TYPE.toString(), HttpHeaderValues.APPLICATION_JSON.toString());
@@ -212,6 +218,7 @@ public class ProxyServer extends RestEndpoint {
                 .onSuccess(cacheResponse -> {
                     LOGGER.info("Retrieving " + uri + " from redis");
                     Ok(JsonObject.mapFrom(cacheResponse), hashMap, routingContext);
+                    discovery.close();
                 }).onFailure(cause -> request.timeout(2000).send(httpResponseAsyncResult -> {
             if (httpResponseAsyncResult.succeeded() && httpResponseAsyncResult.result().statusCode() == HttpResponseStatus.OK.code()) {
                 HttpResponse<Buffer> response = httpResponseAsyncResult.result();
@@ -255,11 +262,12 @@ public class ProxyServer extends RestEndpoint {
                 ServerError(errorJson.encode(), routingContext);
                 ServiceDiscovery.releaseServiceObject(discovery, webClient);
             }
+            discovery.close();
         }));
     }
 
     private void handleHttpResponse(String uri, HttpServerResponse serverResponse,
-                                    AsyncResult<HttpResponse<Buffer>> httpResponseAsyncResult, WebClient webClient) {
+                                    AsyncResult<HttpResponse<Buffer>> httpResponseAsyncResult, WebClient webClient, ServiceDiscovery discovery) {
         if (httpResponseAsyncResult.succeeded()) {
             HttpResponse<Buffer> response = httpResponseAsyncResult.result();
             Buffer body = response.bodyAsBuffer();
@@ -275,5 +283,8 @@ public class ProxyServer extends RestEndpoint {
             serverResponse.setStatusCode(HttpResponseStatus.INTERNAL_SERVER_ERROR.code()).end();
         }
         ServiceDiscovery.releaseServiceObject(discovery, webClient);
+        discovery.close();
     }
+
+
 }

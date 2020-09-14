@@ -13,19 +13,16 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.servicediscovery.Record;
 import io.vertx.servicediscovery.ServiceDiscovery;
-import io.vertx.servicediscovery.ServiceDiscoveryOptions;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.BiConsumer;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 public class HealthChecksServer extends RestEndpoint {
     private final Logger LOGGER = Logger.getLogger(HealthChecksServer.class.getName());
-    private ServiceDiscovery discovery;
     private final static int PORT = 9000;
     private final static int HEARTBEAT = Integer.parseInt(Optional.ofNullable(System.getenv("HEARTBEAT")).orElse("10"));
     private final static String REDIS_DB_HOST = Optional.ofNullable(System.getenv("REDIS_DB_HOST"))
@@ -35,19 +32,6 @@ public class HealthChecksServer extends RestEndpoint {
     private static final String REDIS_KEY_SERVICES = Optional.ofNullable(System.getenv("REDIS_KEY_SERVICES")).orElse("http_endpoints");
     private static final int TIMEOUT_FAILURE = Integer.parseInt(Optional.ofNullable(System.getenv("TIMEOUT_FAILURE")).orElse("4"));
     private WebClient secureSSLHealthCheckClient;
-
-    private final BiConsumer<WebClient, Promise<Status>> procedureFn = (webClient, promise) -> webClient.get("/ping").send(responseHandler -> {
-        if (responseHandler.succeeded()) {
-            promise.tryComplete(Status.OK());
-        } else {
-            //if timeout is reached promise is already completed, so use try
-            if (responseHandler.cause() != null) {
-                responseHandler.cause().printStackTrace();
-            }
-            promise.tryComplete(Status.KO(new JsonObject().put("failedTime", LocalDateTime.now().toString())));
-            ServiceDiscovery.releaseServiceObject(discovery, webClient);
-        }
-    });
 
 
     @Override
@@ -62,11 +46,6 @@ public class HealthChecksServer extends RestEndpoint {
                 .future()
                 .onSuccess(httpServer -> {
                     LOGGER.info("Deployed health checks verticles");
-                    this.discovery = ServiceDiscovery.create(vertx, new ServiceDiscoveryOptions()
-                            .setBackendConfiguration(new JsonObject()
-                                    .put("host", REDIS_DB_HOST)
-                                    .put("port", REDIS_DB_PORT)
-                                    .put("key", REDIS_KEY_SERVICES)));
                     SSLUtils.createProxySSLOptions(vertx).future()
                             .compose(webClientOptions -> {
                                 this.secureSSLHealthCheckClient = WebClient.create(vertx, webClientOptions);
@@ -81,24 +60,26 @@ public class HealthChecksServer extends RestEndpoint {
     private void handleIncomingService(Message<JsonObject> objectMessage, HealthCheckHandler healthCheckHandler) {
         JsonObject json = objectMessage.body();
         if (json.getString("status").equals(io.vertx.servicediscovery.Status.UP.name())) {
+            ServiceDiscovery discovery = createDiscovery(REDIS_DB_HOST, String.valueOf(REDIS_DB_PORT), REDIS_KEY_SERVICES);
             discovery.getRecord(record -> record.getMetadata().encode().equals(json.getJsonObject("metadata").encode()), ar -> {
                 if (ar.succeeded()) {
                     WebClient webClient = discovery.getReference(ar.result()).getAs(WebClient.class);
                     healthCheckHandler.register(ar.result().getRegistration(),
                             TIMEOUT_FAILURE * 1000,
-                            promise -> procedureFn.accept(webClient, promise));
+                            promise -> procedure(webClient, discovery, promise));
                 }
             });
         }
     }
 
     private void startHealthCheck(HealthCheckHandler healthCheckHandler) {
+        ServiceDiscovery discovery = createDiscovery(REDIS_DB_HOST, String.valueOf(REDIS_DB_PORT), REDIS_KEY_SERVICES);
         discovery.getRecords(record -> true, handler -> {
             if (handler.succeeded()) {
                 List<Record> records = handler.result();
                 records.forEach(record -> healthCheckHandler.register(record.getRegistration(), TIMEOUT_FAILURE * 1000, promise -> {
                     WebClient webClient = discovery.getReference(record).getAs(WebClient.class);
-                    procedureFn.accept(webClient, promise);
+                    procedure(webClient, discovery, promise);
                 }));
             }
         });
@@ -124,13 +105,36 @@ public class HealthChecksServer extends RestEndpoint {
                                         unPublishPromises.add(unPublishPromise);
                                     });
                                     CompositeFuture compositeFuture = CompositeFuture.all(unPublishPromises.stream().map(Promise::future).collect(Collectors.toList()));
-                                    compositeFuture.onFailure(Throwable::printStackTrace);
+                                    compositeFuture.onComplete(cFutures -> {
+                                        if (cFutures.failed()) {
+                                            cFutures.cause().printStackTrace();
+                                        }
+                                        discovery.close();
+                                    });
                                 }
                             } else {
                                 if (ar.cause() != null) {
                                     ar.cause().printStackTrace();
                                 }
+                                discovery.close();
                             }
                         }));
     }
+
+    private void procedure(WebClient webClient, ServiceDiscovery discovery, Promise<Status> statusPromise) {
+        webClient.get("/ping").send(responseHandler -> {
+            if (responseHandler.succeeded()) {
+                statusPromise.tryComplete(Status.OK());
+            } else {
+                //if timeout is reached promise is already completed, so use try
+                if (responseHandler.cause() != null) {
+                    responseHandler.cause().printStackTrace();
+                }
+                statusPromise.tryComplete(Status.KO(new JsonObject().put("failedTime", LocalDateTime.now().toString())));
+                ServiceDiscovery.releaseServiceObject(discovery, webClient);
+                discovery.close();
+            }
+        });
+    }
+
 }
