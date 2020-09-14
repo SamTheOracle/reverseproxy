@@ -19,7 +19,6 @@ public class SSLUtils {
             .setPassword("changeit");
 
     public static HttpServerOptions httpSSLServerOptions() {
-        System.out.println(jksOptions.toJson().encodePrettily());
         return new HttpServerOptions()
                 .setSsl(true)
                 .setKeyStoreOptions(jksOptions);

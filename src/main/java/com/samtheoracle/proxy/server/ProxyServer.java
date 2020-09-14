@@ -132,18 +132,37 @@ public class ProxyServer extends RestEndpoint {
         JsonObject service = routingContext.getBodyAsJson();
         Record record = HttpEndpoint.createRecord(service.getString("name"), service.getJsonObject("location").getString("host"),
                 service.getJsonObject("location").getInteger("port"), service.getJsonObject("location").getString("root"), new JsonObject().put("creationDate", LocalDateTime.now().toString()));
-        publishHttpEndPoint(record, discovery).future().onSuccess(r -> {
-            LOGGER.info("correctly published");
-            LOGGER.info(JsonObject.mapFrom(r).encodePrettily());
-            HashMap<String, String> headers = new HashMap<>();
-            headers.put(HttpHeaderNames.CONTENT_TYPE.toString(), HttpHeaderValues.APPLICATION_JSON.toString());
-            headers.put(HttpHeaderNames.LAST_MODIFIED.toString(), r.getMetadata().getString("creationDate"));
-            headers.put(HttpHeaderNames.LOCATION.toString(), routingContext.request().absoluteURI() + "/" + r.getRegistration());
-            Created(JsonObject.mapFrom(r), headers, routingContext);
-        }).onFailure(cause -> {
-            BadRequest(cause.getMessage(), routingContext);
-            cause.printStackTrace();
+        Promise<Record> serviceAlreadyPresent = Promise.promise();
+        discovery.getRecord(r -> r.getName().equals(record.getName()) && r.getLocation().getString("host").equals(record.getLocation().getString("host")), recordAsync -> {
+            if (recordAsync.succeeded() && recordAsync.result() != null) {
+                serviceAlreadyPresent.complete(recordAsync.result());
+
+            } else if (recordAsync.succeeded()) {
+                serviceAlreadyPresent.fail(new IllegalArgumentException("Service is not present"));
+            } else {
+                serviceAlreadyPresent.fail(recordAsync.cause());
+            }
         });
+        serviceAlreadyPresent.future()
+                .onSuccess(r -> {
+                    LOGGER.info("Service already exists");
+                    Ok(record.toJson(), new HashMap<>(), routingContext);
+                })
+                .onFailure(cause -> publishHttpEndPoint(record, discovery)
+                        .future()
+                        .onSuccess(r -> {
+                            LOGGER.info("correctly published");
+                            LOGGER.info(JsonObject.mapFrom(r).encodePrettily());
+                            HashMap<String, String> headers = new HashMap<>();
+                            headers.put(HttpHeaderNames.CONTENT_TYPE.toString(), HttpHeaderValues.APPLICATION_JSON.toString());
+                            headers.put(HttpHeaderNames.LAST_MODIFIED.toString(), r.getMetadata().getString("creationDate"));
+                            headers.put(HttpHeaderNames.LOCATION.toString(), routingContext.request().absoluteURI() + "/" + r.getRegistration());
+                            Created(JsonObject.mapFrom(r), headers, routingContext);
+                        }).onFailure(reason -> {
+                            BadRequest(cause.getMessage(), routingContext);
+                            cause.printStackTrace();
+                        }));
+
     }
 
     private void rerouteToService(RoutingContext routingContext, String root, String uri) {
@@ -185,10 +204,15 @@ public class ProxyServer extends RestEndpoint {
 
         HashMap<String, String> hashMap = new HashMap<>();
         hashMap.put(HttpHeaderNames.CONTENT_TYPE.toString(), HttpHeaderValues.APPLICATION_JSON.toString());
-        DatabaseServiceBuilder.redis().findBuilder(vertx).setOptions(CachedResponse.class).find(uri).future().onSuccess(cacheResponse -> {
-            LOGGER.info("Retrieving " + uri + " from redis");
-            Ok(JsonObject.mapFrom(cacheResponse), hashMap, routingContext);
-        }).onFailure(cause -> request.send(httpResponseAsyncResult -> {
+        DatabaseServiceBuilder.redis()
+                .findBuilder(vertx)
+                .setOptions(CachedResponse.class)
+                .find(uri)
+                .future()
+                .onSuccess(cacheResponse -> {
+                    LOGGER.info("Retrieving " + uri + " from redis");
+                    Ok(JsonObject.mapFrom(cacheResponse), hashMap, routingContext);
+                }).onFailure(cause -> request.timeout(2000).send(httpResponseAsyncResult -> {
             if (httpResponseAsyncResult.succeeded() && httpResponseAsyncResult.result().statusCode() == HttpResponseStatus.OK.code()) {
                 HttpResponse<Buffer> response = httpResponseAsyncResult.result();
                 response.headers().forEach(header -> httpServerResponse.putHeader(header.getKey(), header.getValue()));
