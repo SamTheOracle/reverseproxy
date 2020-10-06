@@ -174,6 +174,7 @@ public class ProxyServer extends RestEndpoint {
 
     private void rerouteToService(RoutingContext routingContext, String root, String uri) {
         ServiceDiscovery discovery = createDiscovery(REDIS_DB_HOST, REDIS_DB_PORT, REDIS_KEY_SERVICES);
+        LOGGER.info("handling request " + routingContext.request().method().name() + " " + routingContext.request().absoluteURI());
         HttpEndpoint.getWebClient(discovery, record -> record.getLocation().getString("root").equals(root), webClientAsyncResult -> {
             if (webClientAsyncResult.succeeded()) {
                 WebClient webClient = webClientAsyncResult.result();
@@ -199,7 +200,6 @@ public class ProxyServer extends RestEndpoint {
             } else {
                 BadRequest("service with root " + root + " was not found", routingContext);
 
-                //				discovery.close();
             }
 
         });
@@ -226,7 +226,7 @@ public class ProxyServer extends RestEndpoint {
                 Buffer responseBody = response.body();
                 //send back result and cache in redis
                 int cacheAge = Math.min(Integer.parseInt(Optional.ofNullable(request.headers().get(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE)).orElse("0")), CACHE_MAX_AGE);
-                LOGGER.info("cache age " + cacheAge);
+
                 //if responsobody is not a JSON string, it breaks
                 CachedResponse cachedResponse = new CachedResponse(responseBody.toJson(), false);
                 JsonObject httpServerResponseJson = JsonObject.mapFrom(cachedResponse);

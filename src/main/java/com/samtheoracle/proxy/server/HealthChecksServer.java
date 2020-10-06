@@ -109,14 +109,12 @@ public class HealthChecksServer extends RestEndpoint {
                                         if (cFutures.failed()) {
                                             cFutures.cause().printStackTrace();
                                         }
-                                        discovery.close();
                                     });
                                 }
                             } else {
                                 if (ar.cause() != null) {
                                     ar.cause().printStackTrace();
                                 }
-                                discovery.close();
                             }
                         }));
     }
@@ -129,7 +127,9 @@ public class HealthChecksServer extends RestEndpoint {
                 //if timeout is reached promise is already completed, so use try
                 if (responseHandler.cause() != null) {
                     responseHandler.cause().printStackTrace();
+                    LOGGER.info("Error executing procedure\n" + responseHandler.cause().getMessage());
                 }
+                LOGGER.info("Failure for procedure");
                 statusPromise.tryComplete(Status.KO(new JsonObject().put("failedTime", LocalDateTime.now().toString())));
                 ServiceDiscovery.releaseServiceObject(discovery, webClient);
                 discovery.close();
