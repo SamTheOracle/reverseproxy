@@ -24,6 +24,7 @@ public class ProxyBootstrap extends AbstractVerticle {
     @Override
     public void start(Promise<Void> startPromise) throws Exception {
         LOGGER.info("Deploying " + PROXY_INSTANCES + " of proxy server and redis access");
+
         Promise<String> proxyServerPromise = Promise.promise();
         Promise<String> redisAccessPromise = Promise.promise();
         Promise<String> healthChecksPromise = Promise.promise();

@@ -1,6 +1,5 @@
 package com.samtheoracle.proxy.server;
 
-import com.samtheoracle.proxy.utils.SSLUtils;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -31,7 +30,8 @@ public class HealthChecksServer extends RestEndpoint {
             .orElse("6379"));
     private static final String REDIS_KEY_SERVICES = Optional.ofNullable(System.getenv("REDIS_KEY_SERVICES")).orElse("http_endpoints");
     private static final int TIMEOUT_FAILURE = Integer.parseInt(Optional.ofNullable(System.getenv("TIMEOUT_FAILURE")).orElse("4"));
-    private WebClient secureSSLHealthCheckClient;
+    private WebClient webClient;
+    private ServiceDiscovery discovery;
 
 
     @Override
@@ -42,50 +42,47 @@ public class HealthChecksServer extends RestEndpoint {
 
         vertx.eventBus().<JsonObject>consumer("vertx.discovery.announce").handler(event -> handleIncomingService(event, healthCheckHandler));
 
-        createServer(PORT, router, SSLUtils.httpSSLServerOptionsHealthchecks())
+        createServer(PORT, router)
                 .future()
-                .onSuccess(httpServer -> {
-                    LOGGER.info("Deployed health checks verticles");
-                    SSLUtils.createProxySSLOptions(vertx).future()
-                            .compose(webClientOptions -> {
-                                this.secureSSLHealthCheckClient = WebClient.create(vertx, webClientOptions);
-                                return Future.succeededFuture();
-                            }).onSuccess(aVoid -> {
-                        startHealthCheck(healthCheckHandler);
-                        startPromise.complete();
-                    }).onFailure(startPromise::fail);
-                }).onFailure(startPromise::fail);
+                .compose(o -> {
+                    discovery = createDiscovery(REDIS_DB_HOST, String.valueOf(REDIS_DB_PORT), REDIS_KEY_SERVICES);
+                    webClient = WebClient.create(vertx);
+                    return Future.succeededFuture();
+                }).onSuccess(aVoid -> {
+            startHealthCheck(healthCheckHandler);
+            startPromise.complete();
+        }).onFailure(startPromise::fail);
     }
 
     private void handleIncomingService(Message<JsonObject> objectMessage, HealthCheckHandler healthCheckHandler) {
-        JsonObject json = objectMessage.body();
-        if (json.getString("status").equals(io.vertx.servicediscovery.Status.UP.name())) {
-            ServiceDiscovery discovery = createDiscovery(REDIS_DB_HOST, String.valueOf(REDIS_DB_PORT), REDIS_KEY_SERVICES);
-            discovery.getRecord(record -> record.getMetadata().encode().equals(json.getJsonObject("metadata").encode()), ar -> {
+        JsonObject serviceJson = objectMessage.body();
+        LOGGER.info("New service\n" + serviceJson.encodePrettily());
+
+        if (serviceJson.getString("status").equals(io.vertx.servicediscovery.Status.UP.name())) {
+            discovery.getRecord(record -> record.getMetadata().encode().equals(serviceJson.getJsonObject("metadata").encode()), ar -> {
                 if (ar.succeeded()) {
                     WebClient webClient = discovery.getReference(ar.result()).getAs(WebClient.class);
                     healthCheckHandler.register(ar.result().getRegistration(),
                             TIMEOUT_FAILURE * 1000,
-                            promise -> procedure(webClient, discovery, promise));
+                            promise -> procedure(webClient, discovery, promise, ar.result().getName()));
                 }
             });
         }
     }
 
     private void startHealthCheck(HealthCheckHandler healthCheckHandler) {
-        ServiceDiscovery discovery = createDiscovery(REDIS_DB_HOST, String.valueOf(REDIS_DB_PORT), REDIS_KEY_SERVICES);
         discovery.getRecords(record -> true, handler -> {
             if (handler.succeeded()) {
                 List<Record> records = handler.result();
                 records.forEach(record -> healthCheckHandler.register(record.getRegistration(), TIMEOUT_FAILURE * 1000, promise -> {
                     WebClient webClient = discovery.getReference(record).getAs(WebClient.class);
-                    procedure(webClient, discovery, promise);
+                    procedure(webClient, discovery, promise, record.getName());
                 }));
             }
         });
         //Start periodic check to services
         vertx.setPeriodic(HEARTBEAT * 1000,
-                handler -> secureSSLHealthCheckClient.get(PORT, "localhost", "/health")
+                handler -> webClient.get(PORT, "localhost", "/health")
                         .send(ar -> {
                             if (ar.succeeded() && ar.result().body() != null) {
                                 LOGGER.info("Checks results:\n" + ar.result().body().toJsonObject().encodePrettily());
@@ -119,10 +116,11 @@ public class HealthChecksServer extends RestEndpoint {
                         }));
     }
 
-    private void procedure(WebClient webClient, ServiceDiscovery discovery, Promise<Status> statusPromise) {
+    private void procedure(WebClient webClient, ServiceDiscovery discovery, Promise<Status> statusPromise, String serviceName) {
         webClient.get("/ping").send(responseHandler -> {
             if (responseHandler.succeeded()) {
-                statusPromise.tryComplete(Status.OK());
+                statusPromise.tryComplete(Status.OK(new JsonObject()
+                        .put("name", serviceName)));
             } else {
                 //if timeout is reached promise is already completed, so use try
                 if (responseHandler.cause() != null) {
@@ -132,7 +130,6 @@ public class HealthChecksServer extends RestEndpoint {
                 LOGGER.info("Failure for procedure");
                 statusPromise.tryComplete(Status.KO(new JsonObject().put("failedTime", LocalDateTime.now().toString())));
                 ServiceDiscovery.releaseServiceObject(discovery, webClient);
-                discovery.close();
             }
         });
     }

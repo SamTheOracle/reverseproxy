@@ -258,7 +258,7 @@ public class ProxyServer extends RestEndpoint {
             } else {
                 JsonObject errorJson = new JsonObject()
                         .put("status", HttpResponseStatus.INTERNAL_SERVER_ERROR.code())
-                        .put("error", httpResponseAsyncResult.result().body());
+                        .put("error", httpResponseAsyncResult.result() != null ? httpResponseAsyncResult.result().body() : "Unknown error");
                 ServerError(errorJson.encode(), routingContext);
                 ServiceDiscovery.releaseServiceObject(discovery, webClient);
             }

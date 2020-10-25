@@ -1,6 +1,5 @@
 package com.samtheoracle.proxy.utils;
 
-import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.net.JksOptions;
@@ -43,22 +42,11 @@ public class SSLUtils {
                 .setTrustOptions(jksOptionsHealthchecks);
     }
 
-    public static Promise<WebClientOptions> createProxySSLOptions(Vertx vertx) {
-        Promise<WebClientOptions> readJksFilePromise = Promise.promise();
-//    vertx.fileSystem().readFile(KEYSTORE_FILE_NAME, handler -> {
-//      if (handler.succeeded()) {
-//        vertx.executeBlocking(promise -> promise.complete(new WebClientOptions()
-//                .setSsl(true)
-//                .setKeyStoreOptions(new JksOptions()
-//                        .setValue(handler.result())
-//                        .setPassword("changeit"))), readJksFilePromise);
-//      } else {
-//        readJksFilePromise.fail(handler.cause());
-//      }
-//    });
-        vertx.executeBlocking(promise -> promise.complete(new WebClientOptions()
+    public static WebClientOptions sslProxySSLOptions(Vertx vertx) {
+
+        return new WebClientOptions()
                 .setSsl(true)
-                .setTrustStoreOptions(jksOptionsHealthchecks)), readJksFilePromise);
-        return readJksFilePromise;
+                .setTrustStoreOptions(jksOptions);
     }
+
 }
