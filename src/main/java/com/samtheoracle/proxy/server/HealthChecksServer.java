@@ -49,6 +49,7 @@ public class HealthChecksServer extends RestEndpoint {
                     webClient = WebClient.create(vertx);
                     return Future.succeededFuture();
                 }).onSuccess(aVoid -> {
+            LOGGER.info("Started healthchecks");
             startHealthCheck(healthCheckHandler);
             startPromise.complete();
         }).onFailure(startPromise::fail);
@@ -57,7 +58,6 @@ public class HealthChecksServer extends RestEndpoint {
     private void handleIncomingService(Message<JsonObject> objectMessage, HealthCheckHandler healthCheckHandler) {
         JsonObject serviceJson = objectMessage.body();
         LOGGER.info("New service\n" + serviceJson.encodePrettily());
-
         if (serviceJson.getString("status").equals(io.vertx.servicediscovery.Status.UP.name())) {
             discovery.getRecord(record -> record.getMetadata().encode().equals(serviceJson.getJsonObject("metadata").encode()), ar -> {
                 if (ar.succeeded()) {
@@ -69,11 +69,11 @@ public class HealthChecksServer extends RestEndpoint {
             });
         }
     }
-
     private void startHealthCheck(HealthCheckHandler healthCheckHandler) {
         discovery.getRecords(record -> true, handler -> {
             if (handler.succeeded()) {
                 List<Record> records = handler.result();
+                LOGGER.info("Number of services present: " + records.size());
                 records.forEach(record -> healthCheckHandler.register(record.getRegistration(), TIMEOUT_FAILURE * 1000, promise -> {
                     WebClient webClient = discovery.getReference(record).getAs(WebClient.class);
                     procedure(webClient, discovery, promise, record.getName());
@@ -84,6 +84,8 @@ public class HealthChecksServer extends RestEndpoint {
         vertx.setPeriodic(HEARTBEAT * 1000,
                 handler -> webClient.get(PORT, "localhost", "/health")
                         .send(ar -> {
+                            LOGGER.info("Sent request to healthcheck server");
+
                             if (ar.succeeded() && ar.result().body() != null) {
                                 LOGGER.info("Checks results:\n" + ar.result().body().toJsonObject().encodePrettily());
                                 JsonObject statusList = ar.result().bodyAsJsonObject();
@@ -108,6 +110,9 @@ public class HealthChecksServer extends RestEndpoint {
                                         }
                                     });
                                 }
+                            }
+                            if (ar.succeeded()) {
+                                LOGGER.info("no service is present");
                             } else {
                                 if (ar.cause() != null) {
                                     ar.cause().printStackTrace();
