@@ -110,8 +110,7 @@ public class HealthChecksServer extends RestEndpoint {
                                         }
                                     });
                                 }
-                            }
-                            if (ar.succeeded()) {
+                            } else if (ar.succeeded()) {
                                 LOGGER.info("no service is present");
                             } else {
                                 if (ar.cause() != null) {

@@ -1,7 +1,7 @@
 package com.samtheoracle.proxy.server;
 
-import com.oracolo.database.builder.DatabaseServiceBuilder;
-import com.oracolo.database.builder.redis.RedisOptions;
+import com.oracolo.database.redis.RedisOptions;
+import com.samtheoracle.proxy.services.CacheService;
 import com.samtheoracle.proxy.utils.SSLUtils;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
@@ -43,7 +43,8 @@ public class ProxyServer extends RestEndpoint {
     private static final String REDIS_DB_HOST = Optional.ofNullable(System.getenv("REDIS_DB_HOST")).orElse("localhost");
     private static final String REDIS_DB_PORT = Optional.ofNullable(System.getenv("REDIS_DB_PORT")).orElse("6379");
     private static final int CACHE_MAX_AGE = Integer.parseInt(Optional.ofNullable(System.getenv("CACHE_MAX_AGE")).orElse("60"));
-    private final Logger LOGGER = Logger.getLogger(ProxyServer.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(ProxyServer.class.getName());
+    private CacheService cacheService;
 
     private static Promise<Record> publishHttpEndPoint(Record record, ServiceDiscovery discovery) {
         Promise<Record> recordPromise = Promise.promise();
@@ -55,6 +56,7 @@ public class ProxyServer extends RestEndpoint {
     @Override
     public void start(Promise<Void> startPromise) throws Exception {
         super.start();
+        this.cacheService = CacheService.create(vertx);
         final HealthCheckHandler healthCheckHandler = HealthCheckHandler.create(vertx);
         final Router router = Router.router(vertx);
 
@@ -210,10 +212,7 @@ public class ProxyServer extends RestEndpoint {
 
         HashMap<String, String> hashMap = new HashMap<>();
         hashMap.put(HttpHeaderNames.CONTENT_TYPE.toString(), HttpHeaderValues.APPLICATION_JSON.toString());
-        DatabaseServiceBuilder.redis()
-                .findBuilder(vertx)
-                .setOptions(CachedResponse.class)
-                .find(uri)
+        cacheService.findCachedResponse(uri)
                 .future()
                 .onSuccess(cacheResponse -> {
                     LOGGER.info("Retrieving " + uri + " from redis");
@@ -238,9 +237,10 @@ public class ProxyServer extends RestEndpoint {
                             .end(httpServerResponseJson.toBuffer());
                     ServiceDiscovery.releaseServiceObject(discovery, webClient);
                     LOGGER.info(httpServerResponseJson.encodePrettily());
-                    DatabaseServiceBuilder.redis().insertBuilder(vertx)
-                            .setOptions(CachedResponse.class, new RedisOptions().setCacheExpiration(cacheAge).setKey(uri))
-                            .save(new CachedResponse(responseBody.toJson(), true)).future()
+                    cachedResponse.setCached(true);
+                    cachedResponse.setRedisOptions(new RedisOptions().setCacheExpiration(cacheAge).setKey(uri));
+                    cacheService.saveCachedResponse(cachedResponse)
+                            .future()
                             .onSuccess(redis -> LOGGER.info("successfully cached get request " + uri))
                             .onFailure(reason -> LOGGER.info("could not cache in redis " + reason.getMessage()));
                 } else {

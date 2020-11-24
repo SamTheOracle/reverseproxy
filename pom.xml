@@ -92,8 +92,7 @@
         <dependency>
             <groupId>com.oracolo</groupId>
             <artifactId>database</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
-            <scope>compile</scope>
+            <version>1.0-SNAPSHOT</version>
         </dependency>
     </dependencies>
 
