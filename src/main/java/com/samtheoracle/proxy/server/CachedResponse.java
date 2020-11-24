@@ -1,10 +1,16 @@
 package com.samtheoracle.proxy.server;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.oracolo.database.redis.RedisOptions;
+
 public class CachedResponse {
 
   private boolean cached;
 
   private Object data;
+
+  @JsonIgnore
+  private RedisOptions redisOptions;
 
   public CachedResponse() {
   }
@@ -30,4 +36,13 @@ public class CachedResponse {
     this.cached = cached;
   }
 
+  @JsonIgnore
+  public RedisOptions getRedisOptions() {
+    return redisOptions;
+  }
+
+  @JsonIgnore
+  public void setRedisOptions(RedisOptions redisOptions) {
+    this.redisOptions = redisOptions;
+  }
 }
