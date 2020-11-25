@@ -1,9 +1,10 @@
 package com.samtheoracle.proxy.server;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.oracolo.database.redis.RedisEntity;
 import com.oracolo.database.redis.RedisOptions;
 
-public class CachedResponse {
+public class CachedResponse extends RedisEntity {
 
   private boolean cached;
 

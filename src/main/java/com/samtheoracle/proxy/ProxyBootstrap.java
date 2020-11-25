@@ -28,6 +28,7 @@ public class ProxyBootstrap extends AbstractVerticle {
         Promise<String> proxyServerPromise = Promise.promise();
         Promise<String> redisAccessPromise = Promise.promise();
         Promise<String> healthChecksPromise = Promise.promise();
+
         vertx.deployVerticle(RedisAccessVerticle.class, new DeploymentOptions().setInstances(PROXY_INSTANCES), redisAccessPromise);
         redisAccessPromise.future()
                 .compose(serverDeploy -> {
@@ -37,7 +38,7 @@ public class ProxyBootstrap extends AbstractVerticle {
                 })
                 .compose(serverDeploy -> {
 
-                    vertx.deployVerticle(new HealthChecksServer(), healthChecksPromise);
+                    vertx.deployVerticle(new HealthChecksServer(), new DeploymentOptions().setWorker(true), healthChecksPromise);
                     return healthChecksPromise.future();
                 })
                 .onSuccess(id -> startPromise.complete())
