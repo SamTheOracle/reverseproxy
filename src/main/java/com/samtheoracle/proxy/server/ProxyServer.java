@@ -15,12 +15,12 @@ import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import io.vertx.ext.healthchecks.HealthCheckHandler;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.client.HttpRequest;
 import io.vertx.ext.web.client.HttpResponse;
 import io.vertx.ext.web.client.WebClient;
+import io.vertx.ext.web.client.predicate.ResponsePredicate;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.servicediscovery.Record;
@@ -42,6 +42,8 @@ public class ProxyServer extends RestEndpoint {
     private static final String REDIS_KEY_SERVICES = Optional.ofNullable(System.getenv("REDIS_KEY_SERVICES")).orElse("http_endpoints");
     private static final String REDIS_DB_HOST = Optional.ofNullable(System.getenv("REDIS_DB_HOST")).orElse("localhost");
     private static final String REDIS_DB_PORT = Optional.ofNullable(System.getenv("REDIS_DB_PORT")).orElse("6379");
+    private static final int TIMEOUT_FAILURE = Integer.parseInt(Optional.ofNullable(System.getenv("TIMEOUT_FAILURE")).orElse("4"));
+    private final static int HEARTBEAT = Integer.parseInt(Optional.ofNullable(System.getenv("HEARTBEAT")).orElse("10"));
     private static final int CACHE_MAX_AGE = Integer.parseInt(Optional.ofNullable(System.getenv("CACHE_MAX_AGE")).orElse("60"));
     private static final Logger LOGGER = Logger.getLogger(ProxyServer.class.getName());
     private CacheService cacheService;
@@ -57,7 +59,6 @@ public class ProxyServer extends RestEndpoint {
     public void start(Promise<Void> startPromise) throws Exception {
         super.start();
         this.cacheService = CacheService.create(vertx);
-        final HealthCheckHandler healthCheckHandler = HealthCheckHandler.create(vertx);
         final Router router = Router.router(vertx);
 
         router.route().handler(CorsHandler.create(".*.")
@@ -67,7 +68,7 @@ public class ProxyServer extends RestEndpoint {
         router.get("/").handler(routingContext -> routingContext.response().putHeader(HttpHeaderNames.CONTENT_TYPE.toString(), HttpHeaderValues.TEXT_PLAIN).end("Welcome to ssl proxy!"));
         router.post("/services").handler(this::handleServiceCreation);
         router.get("/services").handler(this::handleGetServices);
-        router.delete("/services").handler(routingContext -> handleDeleteAllServices(routingContext, healthCheckHandler));
+        router.delete("/services").handler(this::handleDeleteAllServices);
 
         router.route(ROOT_PATH + "/*").handler(routingContext -> {
             String uri = routingContext.request().uri().split(ROOT_PATH)[1];
@@ -90,7 +91,7 @@ public class ProxyServer extends RestEndpoint {
         }).onFailure(startPromise::fail);
     }
 
-    private void handleDeleteAllServices(RoutingContext routingContext, HealthCheckHandler healthCheckHandler) {
+    private void handleDeleteAllServices(RoutingContext routingContext) {
         Promise<List<Record>> recordsPromise = Promise.promise();
         List<Promise<Void>> unpublishPromises = new ArrayList<>();
 
@@ -100,7 +101,6 @@ public class ProxyServer extends RestEndpoint {
         recordsPromise.future().onSuccess(records -> records.forEach(record -> {
             Promise<Void> promise = Promise.promise();
             discovery.unpublish(record.getRegistration(), promise);
-            healthCheckHandler.unregister(record.getRegistration());
             unpublishPromises.add(promise);
         }));
         CompositeFuture.all(unpublishPromises.stream().map(Promise::future).collect(Collectors.toList()))
@@ -186,7 +186,7 @@ public class ProxyServer extends RestEndpoint {
                 HttpMethod method = httpServerRequest.method();
 
                 HttpRequest<Buffer> request = webClient.request(method, uri);
-
+                request.timeout(1000);
                 request.putHeaders(httpServerRequest.headers());
 
                 //put, post with body
@@ -284,6 +284,37 @@ public class ProxyServer extends RestEndpoint {
         }
         ServiceDiscovery.releaseServiceObject(discovery, webClient);
         discovery.close();
+    }
+
+
+    private void health(ServiceDiscovery discovery) {
+        discovery.getRecords(record -> true, recordsAsync -> {
+            if (recordsAsync.succeeded() && recordsAsync.result() != null) {
+                LOGGER.info("Pinging http endpoints " + recordsAsync.result().size());
+                List<Promise<Void>> asyncOps = new ArrayList<>();
+                recordsAsync.result().forEach(record -> {
+                    LOGGER.info("Pinging record " + record.toJson().encode());
+                    WebClient webClient = discovery.getReference(record).getAs(WebClient.class);
+                    webClient.get("/ping")
+                            .expect(ResponsePredicate.SC_OK)
+                            .timeout(TIMEOUT_FAILURE)
+                            .send(asyncOp -> {
+                                Promise<Void> p = Promise.promise();
+                                if (asyncOp.failed()) {
+                                    LOGGER.info("Record " + record.toJson().encode() + " is DOWN");
+                                    discovery.unpublish(record.getRegistration(), p);
+                                } else {
+                                    LOGGER.info("Record " + record.toJson().encode() + " is UP");
+                                    p.complete();
+                                }
+                                asyncOps.add(p);
+                            });
+                });
+                CompositeFuture.all(asyncOps.stream().map(Promise::future).collect(Collectors.toList()))
+                        .onComplete(event -> discovery.close());
+
+            }
+        });
     }
 
 
