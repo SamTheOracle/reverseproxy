@@ -23,31 +23,39 @@ public class HealthCheckHandler extends RestEndpoint {
     @Override
     public void start() throws Exception {
 
+        LOGGER.info("Starting periodic health check");
+        discovery = createDiscovery(REDIS_DB_HOST, REDIS_DB_PORT, REDIS_KEY_SERVICES);
+
         vertx.setPeriodic(HEARTBEAT * 1000, this::health);
     }
 
     private void health(Long id) {
-        if (discovery != null) {
-            discovery.close();
-        }
-        discovery = createDiscovery(REDIS_DB_HOST, REDIS_DB_PORT, REDIS_KEY_SERVICES);
+
         discovery.getRecords(record -> true, recordsAsync -> {
             if (recordsAsync.succeeded() && recordsAsync.result() != null) {
                 recordsAsync.result().forEach(record -> {
+                    LOGGER.info("Making health check to service " + record.toJson().encode());
                     WebClient webClient = discovery.getReference(record).getAs(WebClient.class);
                     webClient.get("/ping")
                             .expect(ResponsePredicate.SC_OK)
-                            .timeout(800)
+                            .timeout(1000)
                             .send(asyncOp -> {
                                 if (asyncOp.failed()) {
                                     Promise<Void> p = Promise.promise();
                                     LOGGER.info("Record " + record.toJson().encode() + " is DOWN");
                                     discovery.unpublish(record.getRegistration(), p);
-                                    p.future().onSuccess(event -> LOGGER.info("unpublished record")).onFailure(Throwable::printStackTrace);
+                                    p.future().onComplete(aVoid -> {
+                                        if (aVoid.succeeded()) {
+                                            LOGGER.info("unpublished record");
+                                        } else {
+                                            aVoid.cause().printStackTrace();
+                                        }
+                                    });
                                     asyncOp.cause().printStackTrace();
                                 } else {
                                     LOGGER.info("Record " + record.toJson().encode() + " is UP");
                                 }
+                                ServiceDiscovery.releaseServiceObject(discovery, webClient);
                             });
                 });
             }
