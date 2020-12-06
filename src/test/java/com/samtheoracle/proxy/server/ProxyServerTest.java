@@ -1,6 +1,7 @@
 package com.samtheoracle.proxy.server;
 
 import com.oracolo.database.redis.RedisAccessVerticle;
+import com.samtheoracle.proxy.handler.HealthCheckHandler;
 import com.samtheoracle.proxy.utils.SSLUtils;
 import io.vertx.core.Promise;
 import io.vertx.core.Verticle;
@@ -49,7 +50,7 @@ class ProxyServerTest {
                     return resultPromise.future();
                 })
                 .compose(o -> {
-                    vertx.deployVerticle(new HealthChecksServer(), healthChecksPromise);
+                    vertx.deployVerticle(new HealthCheckHandler(), healthChecksPromise);
                     return healthChecksPromise.future();
                 })
 
