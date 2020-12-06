@@ -48,12 +48,7 @@ public class ProxyServer extends RestEndpoint {
     private CacheService cacheService;
     private ServiceDiscovery discovery;
 
-    private static Promise<Record> publishHttpEndPoint(Record record, ServiceDiscovery discovery) {
-        Promise<Record> recordPromise = Promise.promise();
 
-        discovery.publish(record, recordPromise);
-        return recordPromise;
-    }
 
     @Override
     public void start(Promise<Void> startPromise) throws Exception {
@@ -284,5 +279,11 @@ public class ProxyServer extends RestEndpoint {
         ServiceDiscovery.releaseServiceObject(discovery, webClient);
     }
 
+    private static Promise<Record> publishHttpEndPoint(Record record, ServiceDiscovery discovery) {
+        Promise<Record> recordPromise = Promise.promise();
+
+        discovery.publish(record, recordPromise);
+        return recordPromise;
+    }
 
 }
