@@ -34,7 +34,7 @@ public class HealthCheckHandler extends RestEndpoint {
         discovery.getRecords(record -> true, recordsAsync -> {
             if (recordsAsync.succeeded() && recordsAsync.result() != null) {
                 recordsAsync.result().forEach(record -> {
-                    LOGGER.info("Making health check to service " + record.toJson().encode());
+//                    LOGGER.log(Log.Level.DEBUG,"Mainfoking health check to service " + record.toJson().encode());
                     WebClient webClient = discovery.getReference(record).getAs(WebClient.class);
                     webClient.get("/ping")
                             .expect(ResponsePredicate.SC_OK)
@@ -42,7 +42,7 @@ public class HealthCheckHandler extends RestEndpoint {
                             .send(asyncOp -> {
                                 if (asyncOp.failed()) {
                                     Promise<Void> p = Promise.promise();
-                                    LOGGER.info("Record " + record.toJson().encode() + " is DOWN");
+//                                    LOGGER.info("Record " + record.toJson().encode() + " is DOWN");
                                     discovery.unpublish(record.getRegistration(), p);
                                     p.future().onComplete(aVoid -> {
                                         if (aVoid.succeeded()) {
@@ -53,7 +53,7 @@ public class HealthCheckHandler extends RestEndpoint {
                                     });
                                     asyncOp.cause().printStackTrace();
                                 } else {
-                                    LOGGER.info("Record " + record.toJson().encode() + " is UP");
+//                                    LOGGER.info("Record " + record.toJson().encode() + " is UP");
                                 }
                                 ServiceDiscovery.releaseServiceObject(discovery, webClient);
                             });

@@ -14,7 +14,7 @@ public class StressTest {
         WebClient client = WebClient.create(vertx, new WebClientOptions().setSsl(true).setTrustOptions(new JksOptions()
                 .setPath("certificates/keystore.jks")
                 .setPassword("changeit")));
-        IntStream.range(0, 3000).forEach(i -> {
+        IntStream.range(0, 800).forEach(i -> {
             try {
                 Thread.sleep(50);
             } catch (InterruptedException e) {
