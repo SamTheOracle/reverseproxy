@@ -11,17 +11,22 @@ public class StressTest {
 
     public static void main(String[] args) {
         Vertx vertx = Vertx.vertx();
-        WebClient client = WebClient.create(vertx, new WebClientOptions().setSsl(true).setTrustOptions(new JksOptions()
-                .setPath("certificates/keystore.jks")
-                .setPassword("changeit")));
-        IntStream.range(0, 800).forEach(i -> {
+        WebClient client = WebClient.create(vertx, new WebClientOptions().setSsl(true)
+                .setTrustOptions(new JksOptions().setPath("certificates/keystore.jks").setPassword("changeit")));
+        IntStream.range(0, 10000).forEach(i -> {
             try {
                 Thread.sleep(50);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
             System.out.println("making http request " + i + "-th");
-//            users/telegram/508229488
+            // users/telegram/508229488
+            client.getAbs("https://findmycar-proxy.com:7000/api/v1/tracks/positions/508229488").send(event -> {
+                System.out.println("done with " + i + "-th request");
+                if (event.failed()) {
+                    System.out.println(event.cause().getMessage());
+                }
+            });
             client.getAbs("https://findmycar-proxy.com:7000/api/v1/users/telegram/508229488").send(event -> {
                 System.out.println("done with " + i + "-th request");
                 if (event.failed()) {

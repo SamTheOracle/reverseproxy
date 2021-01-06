@@ -8,27 +8,21 @@ import io.vertx.ext.web.client.WebClientOptions;
 import java.util.Optional;
 
 public class SSLUtils {
-    private final static String KEYSTORE_FILE_NAME = Optional.ofNullable(System.getenv("KEYSTORE_FILE_NAME")).orElse("proxy-keystore-local.jks");
+    private final static String KEYSTORE = Optional.ofNullable(System.getenv("KEYSTORE")).orElse("proxy-keystore-local.jks");
 
     private final static JksOptions jksOptions = new JksOptions()
-            .setPath(KEYSTORE_FILE_NAME)
-            .setPassword("changeit");
-    private final static JksOptions jksOptionsHealthchecks = new JksOptions()
-            .setPath("proxy-keystore-healthcheck.jks")
+            .setPath(KEYSTORE)
             .setPassword("changeit");
 
+
     public static HttpServerOptions httpSSLServerOptions() {
+        System.out.println(KEYSTORE);
         return new HttpServerOptions()
                 .setSsl(true)
                 .setKeyStoreOptions(jksOptions);
     }
 
-    public static HttpServerOptions httpSSLServerOptionsHealthchecks() {
 
-        return new HttpServerOptions()
-                .setSsl(true)
-                .setKeyStoreOptions(jksOptionsHealthchecks);
-    }
 
     public static WebClientOptions sslWebClientOptions() {
         return new WebClientOptions()
@@ -36,11 +30,7 @@ public class SSLUtils {
                 .setTrustOptions(jksOptions);
     }
 
-    public static WebClientOptions sslWebClientOptionsHealthchecks() {
-        return new WebClientOptions()
-                .setSsl(true)
-                .setTrustOptions(jksOptionsHealthchecks);
-    }
+   
 
     public static WebClientOptions sslProxySSLOptions(Vertx vertx) {
 
