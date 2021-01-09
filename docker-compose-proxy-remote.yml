@@ -25,3 +25,15 @@ services:
     image: redis
     ports:
     - 6380:6379
+  cadvisor:
+    image: 'google/cadvisor:latest'
+    container_name: cadvisor
+    mem_limit: 100MB
+    volumes:
+          - /:/rootfs:ro
+          - /var/run:/var/run:ro
+          - /sys:/sys:ro
+          - /var/lib/docker/:/var/lib/docker:ro
+          - /dev/disk:/dev/disk/:ro
+    ports:
+        - 8082:8080
