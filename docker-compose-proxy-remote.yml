@@ -2,11 +2,15 @@ version: '2.3'
 
 services:
   apache:
-    container_name: 
+    container_name: apache
+    image: oracolo/apache
+    mem_limit: 200MB
+    ports:
+     - 80:80
   proxy:
     container_name: localproxy
     image: oracolo/proxy
-    mem_limit: 1000MB
+    mem_limit: 300MB
     ports:
     - 8080:8080
     environment:
@@ -15,6 +19,7 @@ services:
       - KEYSTORE_FILE_NAME=keystore.jks
     depends_on:
       - redis
+      - apache
   redis:
     container_name: proxy_redis
     image: redis
