@@ -16,7 +16,6 @@ public class SSLUtils {
 
 
     public static HttpServerOptions httpSSLServerOptions() {
-        System.out.println(KEYSTORE);
         return new HttpServerOptions()
                 .setSsl(true)
                 .setKeyStoreOptions(jksOptions);

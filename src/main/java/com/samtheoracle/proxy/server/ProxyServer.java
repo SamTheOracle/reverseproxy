@@ -44,6 +44,7 @@ public class ProxyServer extends RestEndpoint {
     private static final String REDIS_DB_PORT = Optional.ofNullable(System.getenv("REDIS_DB_PORT")).orElse("6379");
     private static final int CACHE_MAX_AGE = Integer
             .parseInt(Optional.ofNullable(System.getenv("CACHE_MAX_AGE")).orElse("60"));
+    private static final Boolean SSL = Boolean.parseBoolean(Optional.ofNullable(System.getenv("SSL")).orElse("false"));
     private static final Logger LOGGER = Logger.getLogger(ProxyServer.class.getName());
     private CacheService cacheService;
     private ServiceDiscovery discovery;
@@ -85,12 +86,20 @@ public class ProxyServer extends RestEndpoint {
             routingContext.response().putHeader(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON)
                     .end(new JsonObject().put("message", "Reverse Proxy Routes").put("routes", j).encodePrettily());
         });
+        if (SSL) {
+            createServer(PORT, router, SSLUtils.httpSSLServerOptions()).future().onSuccess(httpServer -> {
+                LOGGER.info("Server started on port " + httpServer.actualPort());
+                LOGGER.info("deployed at port " + PORT + " with root path " + ROOT_PATH);
+                startPromise.complete();
+            }).onFailure(startPromise::fail);
+        } else {
+            createServer(PORT, router).future().onSuccess(httpServer -> {
+                LOGGER.info("Server started on port " + httpServer.actualPort());
+                LOGGER.info("deployed at port " + PORT + " with root path " + ROOT_PATH);
+                startPromise.complete();
+            }).onFailure(startPromise::fail);
+        }
 
-        createServer(PORT, router, SSLUtils.httpSSLServerOptions()).future().onSuccess(httpServer -> {
-            LOGGER.info("Server started on port " + httpServer.actualPort());
-            LOGGER.info("deployed at port " + PORT + " with root path " + ROOT_PATH);
-            startPromise.complete();
-        }).onFailure(startPromise::fail);
     }
 
     private void handleDeleteAllServices(RoutingContext routingContext) {
