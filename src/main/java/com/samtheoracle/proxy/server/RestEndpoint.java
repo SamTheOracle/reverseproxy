@@ -98,7 +98,6 @@ public abstract class RestEndpoint extends AbstractVerticle {
                 });
         return httpServerPromise;
     }
-
     protected Promise<HttpServer> createServer(int port, Router router) {
         Promise<HttpServer> httpServerPromise = Promise.promise();
         vertx.createHttpServer().requestHandler(router)
@@ -111,7 +110,7 @@ public abstract class RestEndpoint extends AbstractVerticle {
                 });
         return httpServerPromise;
     }
-
+    
     protected ServiceDiscovery createDiscovery(String redisHost, String redisPort, String redisEndpointsKey) {
         return ServiceDiscovery.create(vertx, new ServiceDiscoveryOptions()
                 .setBackendConfiguration(new JsonObject().put("host", redisHost)
