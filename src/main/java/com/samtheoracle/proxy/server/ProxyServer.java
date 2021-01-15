@@ -54,7 +54,7 @@ public class ProxyServer extends RestEndpoint {
     public void start(Promise<Void> startPromise) throws Exception {
         super.start();
         
-        this.cacheService = CacheService.create(vertx);
+        this.cacheService = new CacheService(vertx);
         this.discovery = createDiscovery(REDIS_DB_HOST, REDIS_DB_PORT, REDIS_KEY_SERVICES);
         final Router router = Router.router(vertx);
         router.route().handler(CorsHandler.create(".*.").allowedHeader(HttpHeaderNames.CONTENT_TYPE.toString())
@@ -266,6 +266,7 @@ public class ProxyServer extends RestEndpoint {
                 httpServerResponse.setStatusCode(httpResponseAsyncResult.result().statusCode()).end(errorJson.encode());
                 ServiceDiscovery.releaseServiceObject(discovery, webClient);
             } else {
+                httpResponseAsyncResult.cause().printStackTrace();
                 JsonObject errorJson = new JsonObject().put("status", HttpResponseStatus.INTERNAL_SERVER_ERROR.code())
                         .put("error", httpResponseAsyncResult.result() != null ? httpResponseAsyncResult.result().body()
                                 : "Unknown error");

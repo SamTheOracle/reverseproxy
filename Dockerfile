@@ -15,4 +15,4 @@ WORKDIR $VERTICLE_HOME
 
 ENTRYPOINT ["sh", "-c"]
 
-CMD ["exec java -jar $VERTICLE_FILE"]
+CMD ["exec java -Xmx120m -Xms120m -jar $VERTICLE_FILE"]

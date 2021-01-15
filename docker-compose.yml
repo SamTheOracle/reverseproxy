@@ -2,19 +2,23 @@ version: '2.3'
 
 services:
   apache:
-    container_name: 
-  proxy:
-    container_name: localproxy
-    image: oracolo/proxy
-    mem_limit: 1000MB
+    container_name: apache
+    build: ./apache
     ports:
-    - 8080:8080
+      - 80:80
+  proxy:
+    container_name: proxy
+    build: .
+    mem_limit: 200MB
+    ports:
+      - 8080:8080
     environment:
       - REDIS_DB_HOST=redis
       - REDIS_DB_PORT=6379
       - KEYSTORE_FILE_NAME=keystore.jks
     depends_on:
       - redis
+      - apache
   redis:
     container_name: proxy_redis
     image: redis
