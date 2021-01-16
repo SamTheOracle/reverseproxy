@@ -1,5 +1,6 @@
 package com.samtheoracle.proxy.server;
 
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.Json;
 import io.vertx.ext.web.client.WebClient;
@@ -40,9 +41,12 @@ public class StressTest {
                         System.out.println("done with " + i + "-th request");
                         if (event.failed()) {
                             System.out.println(event.cause().getMessage());
-                        } else {
+                        } else if (event.succeeded() && event.result().statusCode() == HttpResponseStatus.OK.code()) {
                             CachedResponse cachedResponse = Json.decodeValue(event.result().body(), CachedResponse.class);
                             System.out.println("response is cached? " + cachedResponse.isCached());
+                        } else {
+                            System.out.println(event.result().statusCode());
+                            System.out.println(event.result().bodyAsString());
                         }
                     });
         });
