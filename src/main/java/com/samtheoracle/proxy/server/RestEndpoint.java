@@ -20,6 +20,7 @@ import java.util.Map;
 public abstract class RestEndpoint extends AbstractVerticle {
 
 
+    
     protected static void BadRequest(String message, RoutingContext routingContext) {
         end(message, HttpResponseStatus.BAD_REQUEST.code(), routingContext);
     }
@@ -51,6 +52,14 @@ public abstract class RestEndpoint extends AbstractVerticle {
     protected static void NoContent(Map<String, String> headers, RoutingContext routingContext) {
         end(headers, HttpResponseStatus.NO_CONTENT.code(), routingContext);
     }
+    protected void Ok(JsonObject mapFrom, RoutingContext routingContext) {
+        end(mapFrom,HttpResponseStatus.OK.code(), routingContext);
+    }
+
+    private void end(JsonObject responseObject, int code,RoutingContext routingContext) {
+        routingContext.response().setStatusCode(code).end(responseObject.encodePrettily());
+    }
+
 
     protected static void end(JsonObject endObject, Map<String, String> headers, int code, RoutingContext routingContext) {
         HttpServerResponse response = routingContext.response();
@@ -66,7 +75,7 @@ public abstract class RestEndpoint extends AbstractVerticle {
     protected static void end(JsonArray jsonArray, Map<String, String> map, int code, RoutingContext routingContext) {
         HttpServerResponse response = routingContext.response();
         map.forEach(response::putHeader);
-        response.setStatusCode(code).end(jsonArray.encode());
+        response.setStatusCode(code).end(jsonArray.encodePrettily());
     }
 
     protected static void end(Map<String, String> map, int code, RoutingContext routingContext) {

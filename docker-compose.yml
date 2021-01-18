@@ -2,12 +2,12 @@ version: '2.3'
 
 services:
   apache:
-    container_name: apache
+    container_name: localapache
     build: ./apache
     ports:
       - 80:80
   proxy:
-    container_name: proxy
+    container_name: localproxy
     build: .
     mem_limit: 200MB
     ports:
@@ -20,7 +20,7 @@ services:
       - redis
       - apache
   redis:
-    container_name: proxy_redis
+    container_name: localproxy_redis
     image: redis
     ports:
     - 6380:6379

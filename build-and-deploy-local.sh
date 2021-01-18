@@ -4,4 +4,4 @@ mvn clean install -DskipTests
 docker-compose build
 docker-compose up --detach
 echo [--------- LOGS ---------]
-docker logs -f apache
+docker logs -f localapache
