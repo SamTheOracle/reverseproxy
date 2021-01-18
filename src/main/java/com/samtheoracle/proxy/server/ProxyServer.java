@@ -1,37 +1,5 @@
 package com.samtheoracle.proxy.server;
 
-import com.oracolo.database.redis.RedisOptions;
-import com.samtheoracle.proxy.services.CacheService;
-import com.samtheoracle.proxy.utils.ClientUtils;
-import com.samtheoracle.proxy.utils.Config;
-import com.samtheoracle.proxy.utils.SSLUtils;
-import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.handler.codec.http.HttpHeaderValues;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import io.vertx.circuitbreaker.CircuitBreaker;
-import io.vertx.circuitbreaker.CircuitBreakerOptions;
-import io.vertx.core.AsyncResult;
-import io.vertx.core.CompositeFuture;
-import io.vertx.core.Promise;
-import io.vertx.core.buffer.Buffer;
-import io.vertx.core.http.HttpMethod;
-import io.vertx.core.http.HttpServerOptions;
-import io.vertx.core.http.HttpServerRequest;
-import io.vertx.core.http.HttpServerResponse;
-import io.vertx.core.json.JsonArray;
-import io.vertx.core.json.JsonObject;
-import io.vertx.ext.web.Router;
-import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.client.HttpRequest;
-import io.vertx.ext.web.client.HttpResponse;
-import io.vertx.ext.web.client.WebClient;
-import io.vertx.ext.web.client.WebClientOptions;
-import io.vertx.ext.web.handler.BodyHandler;
-import io.vertx.ext.web.handler.CorsHandler;
-import io.vertx.servicediscovery.Record;
-import io.vertx.servicediscovery.ServiceDiscovery;
-import io.vertx.servicediscovery.types.HttpEndpoint;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -41,12 +9,40 @@ import java.util.Optional;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
+import com.oracolo.database.redis.RedisOptions;
+import com.samtheoracle.proxy.services.CacheService;
+import com.samtheoracle.proxy.utils.ClientUtils;
+import com.samtheoracle.proxy.utils.Config;
+import com.samtheoracle.proxy.utils.SSLUtils;
+
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaderValues;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.core.AsyncResult;
+import io.vertx.core.CompositeFuture;
+import io.vertx.core.Promise;
+import io.vertx.core.buffer.Buffer;
+import io.vertx.core.http.HttpMethod;
+import io.vertx.core.http.HttpServerRequest;
+import io.vertx.core.http.HttpServerResponse;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.Router;
+import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.client.HttpRequest;
+import io.vertx.ext.web.client.HttpResponse;
+import io.vertx.ext.web.client.WebClient;
+import io.vertx.ext.web.handler.BodyHandler;
+import io.vertx.ext.web.handler.CorsHandler;
+import io.vertx.servicediscovery.Record;
+import io.vertx.servicediscovery.ServiceDiscovery;
+import io.vertx.servicediscovery.types.HttpEndpoint;
+
 public class ProxyServer extends RestEndpoint {
     private static final Logger LOGGER = Logger.getLogger(ProxyServer.class.getName());
 
     private CacheService cacheService;
     private ServiceDiscovery discovery;
-    private CircuitBreaker breaker;
     private WebClient client;
 
     @Override
@@ -55,9 +51,6 @@ public class ProxyServer extends RestEndpoint {
 
         this.cacheService = new CacheService(vertx);
         this.discovery = createDiscovery(Config.REDIS_DB_HOST, Config.REDIS_DB_PORT, Config.REDIS_KEY_SERVICES);
-        this.breaker = CircuitBreaker.create("proxy-circuit-breaker", vertx,
-                new CircuitBreakerOptions().setMaxFailures(3).setTimeout(1000).setResetTimeout(5000));
-       
         this.client = ClientUtils.httpClient(vertx);
 
         final Router router = Router.router(vertx);
