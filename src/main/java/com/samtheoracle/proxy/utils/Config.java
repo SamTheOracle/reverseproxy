@@ -3,6 +3,7 @@ package com.samtheoracle.proxy.utils;
 import java.util.Optional;
 
 public class Config {
+<<<<<<< HEAD
         public final static int PROXY_INSTANCES = Runtime.getRuntime().availableProcessors() * 2;
         public static final String ROOT_PATH = Optional.ofNullable(System.getenv("ROOT_PATH")).orElse("/api/v1");
         public static final int PORT = Integer.parseInt(Optional.ofNullable(System.getenv("PORT")).orElse("8080"));
