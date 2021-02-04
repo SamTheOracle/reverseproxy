@@ -18,8 +18,8 @@ public class Config {
         public static final int CACHE_MAX_AGE = Integer
                         .parseInt(Optional.ofNullable(System.getenv("CACHE_MAX_AGE")).orElse("60"));
         public final static String KEYSTORE = Optional.ofNullable(System.getenv("KEYSTORE"))
-                        .orElse("proxy-keystore-local.jks");
-        public static final Boolean SSL = Optional.ofNullable(Boolean.parseBoolean(System.getenv("SSL"))).orElse(false);
+                .orElse("proxy-keystore-local.jks");
+        public static final Boolean SSL = Optional.of(Boolean.parseBoolean(System.getenv("SSL"))).orElse(false);
 
         private Config(){}
 }

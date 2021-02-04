@@ -1,6 +1,15 @@
 package com.samtheoracle.proxy.search;
 
-//TODO handle search parameters
+import java.util.Optional;
+
 public enum ServiceSearchParameter {
-  all, name, root
+    all, name, root;
+
+    public static Optional<ServiceSearchParameter> from(String search) {
+        try {
+            return Optional.of(ServiceSearchParameter.valueOf(search));
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+    }
 }
