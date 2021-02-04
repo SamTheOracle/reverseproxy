@@ -1,7 +1,10 @@
 #!/bin/bash
 docker-compose stop
-mvn clean install -DskipTests
+docker start localredis
+mvn clean install
+docker stop localredis
 docker-compose build
+docker-compose pull
 docker-compose up --detach
 echo [--------- LOGS ---------]
-docker logs -f localapache
+docker logs -f localproxy

@@ -1,4 +1,4 @@
-package com.samtheoracle.proxy.handler;
+package com.samtheoracle.proxy.verticles;
 
 import com.samtheoracle.proxy.server.ProxyServer;
 import com.samtheoracle.proxy.server.RestEndpoint;
@@ -12,7 +12,7 @@ import io.vertx.servicediscovery.ServiceDiscovery;
 
 import java.util.logging.Logger;
 
-public class HealthCheckHandler extends RestEndpoint {
+public class HealthCheckVerticle extends RestEndpoint {
 
     private static final Logger LOGGER = Logger.getLogger(ProxyServer.class.getName());
     private ServiceDiscovery discovery;

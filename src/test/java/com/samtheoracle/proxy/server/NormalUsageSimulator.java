@@ -6,36 +6,26 @@ import io.vertx.core.Vertx;
 import io.vertx.core.json.Json;
 import io.vertx.ext.web.client.WebClient;
 
+import java.util.Random;
 import java.util.stream.IntStream;
 
-public class StressTest {
+public class NormalUsageSimulator {
 
     public static String REMOTE = "http://findmycar-proxy.com/proxy/api/v1/tracks/508229488/vehicles";
     public static String LOCAL = "http://localhost:80/proxy/api/v1/tracks/508229488/vehicles";
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
         Vertx vertx = Vertx.vertx();
         WebClient client = WebClient.create(vertx);
-        IntStream.range(0, 30000).forEach(i -> {
-
-            System.out.println("making http request " + i + "-th");
-            // users/telegram/508229488
-            // client.getAbs("http://findmycar-proxy.com/proxy/api/v1/tracks/positions/508229488").send(event
-            // -> {
-            // System.out.println("done with " + i + "-th request");
-            // if (event.failed()) {
-            // System.out.println(event.cause().getMessage());
-            // }
-            // });
-            // client.getAbs("http://findmycar-proxy.com/proxy/api/v1/users/telegram/508229488")
-            //         .putHeader(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE.toString(), "30").send(event -> {
-            //             System.out.println("done with " + i + "-th request");
-            //             if (event.failed()) {
-            //                 System.out.println(event.cause().getMessage());
-            //             }
-            //         });
-            client.getAbs(LOCAL).putHeader(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE.toString(), "30").send(event -> {
-                System.out.println("done with " + i + "-th");
+        Random sleepGen = new Random();
+        while(true){
+            client.getAbs("http://findmycar-proxy.com/proxy/api/v1/users/telegram/508229488")
+                    .putHeader(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE.toString(), "30").send(event -> {
+                if (event.failed()) {
+                    System.out.println(event.cause().getMessage());
+                }
+            });
+            client.getAbs(REMOTE).putHeader(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE.toString(), "30").send(event -> {
                 if (event.failed()) {
                     System.out.println(event.cause().getMessage());
                 } else if (event.succeeded() && event.result().statusCode() == HttpResponseStatus.OK.code()) {
@@ -47,6 +37,9 @@ public class StressTest {
                     System.out.println(event.result().bodyAsString());
                 }
             });
-        });
+            Thread.sleep(sleepGen.nextInt(25)*1000);
+
+        }
+
     }
 }
