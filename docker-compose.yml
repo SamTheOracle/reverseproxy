@@ -23,6 +23,7 @@ services:
     container_name: localproxy_redis
     image: redis
     ports:
+<<<<<<< HEAD
       - 6380:6379
   #  users:
   #     image: oracolo/findmycar:users
@@ -99,6 +100,84 @@ services:
   #     depends_on:
   #       - mongodb
   #       - proxy
+=======
+    - 6380:6379
+  # users:
+  #   image: oracolo/findmycar:users
+  #   container_name: proxy_users_api
+  #   ports:
+  #     - 8900:8000
+  #   environment:
+  #     - MONGO_DB_HOST=mongodb
+  #     - MONGO_DB=userdb
+  #     - MONGO_DB_PORT=27017
+  #     - MONGO_DB_COLLECTION=users
+  #     - PROXY_PORT=80
+  #     - PROXY_HOST=apache
+  #     - PROXY_ROOT_PATH=/proxy/api/v1
+  #     - HOST=users
+  #     - EXTERNAL_PORT=8000
+  #     - KEYSTORE_FILE_NAME=proxy-keystore-local-deploy.jks
+  #   depends_on:
+  #     - mongodb
+  #     - proxy
+  # invites:
+  #   image: oracolo/findmycar:invites
+  #   container_name: proxy_invites_api
+  #   ports:
+  #     - 8907:8000
+  #   environment:
+  #     - MONGO_DB_HOST=mongodb
+  #     - MONGO_DB_PORT=27017
+  #     - MONGO_DB=invitesdb
+  #     - PROXY_PORT=80
+  #     - PROXY_HOST=apache
+  #     - PROXY_ROOT_PATH=/proxy/api/v1
+  #     - HOST=invites
+  #     - EXTERNAL_PORT=8000
+  #     - KEYSTORE_FILE_NAME=proxy-keystore-local-deploy.jks
+  #   depends_on:
+  #     - mongodb
+  #     - proxy
+  # telegram:
+  #   image: oracolo/findmycar:telegram
+  #   container_name: proxy_telegram_api
+  #   ports:
+  #     - 8901:8000
+  #   environment:
+  #     - MONGO_DB_HOST=mongodb
+  #     - MONGO_DB=telegramdb
+  #     - MONGO_DB_PORT=27017
+  #     - MONGO_DB_COLLECTION=chats
+  #     - PROXY_PORT=80
+  #     - PROXY_HOST=apache
+  #     - PROXY_ROOT_PATH=/proxy/api/v1
+  #     - HOST=telegram
+  #     - TELEGRAM_BOT_TOKEN=1353935799:AAFR-NDP3_0Vy8LDsHo0cBJJuP5xHapfAUA
+  #     - EXTERNAL_PORT=8000
+  #     - KEYSTORE_FILE_NAME=proxy-keystore-local-deploy.jks
+  #   depends_on:
+  #     - mongodb
+  #     - proxy
+  # tracks:
+  #   image: oracolo/findmycar:tracks
+  #   container_name: proxy_tracks_api
+  #   ports:
+  #     - 8902:8000
+  #   environment:
+  #     - MONGO_DB_HOST=mongodb
+  #     - MONGO_DB=tracksdb
+  #     - MONGO_DB_PORT=27017
+  #     - PROXY_PORT=80
+  #     - PROXY_HOST=apache
+  #     - PROXY_ROOT_PATH=/proxy/api/v1
+  #     - HOST=tracks
+  #     - EXTERNAL_PORT=8000
+  #     - KEYSTORE_FILE_NAME=proxy-keystore-local-deploy.jks
+  #   depends_on:
+  #     - mongodb
+  #     - proxy
+>>>>>>> cleaning a bit
   mongodb:
     image: mongo
     container_name: proxy_mongo_db

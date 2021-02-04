@@ -3,7 +3,7 @@ package com.samtheoracle.proxy.utils;
 import java.util.Optional;
 
 public class Config {
-<<<<<<< HEAD
+
         public final static int PROXY_INSTANCES = Runtime.getRuntime().availableProcessors() * 2;
         public static final String ROOT_PATH = Optional.ofNullable(System.getenv("ROOT_PATH")).orElse("/api/v1");
         public static final int PORT = Integer.parseInt(Optional.ofNullable(System.getenv("PORT")).orElse("8080"));
@@ -21,6 +21,7 @@ public class Config {
         public final static String KEYSTORE = Optional.ofNullable(System.getenv("KEYSTORE"))
                 .orElse("proxy-keystore-local.jks");
         public static final Boolean SSL = Optional.of(Boolean.parseBoolean(System.getenv("SSL"))).orElse(false);
+
 
         private Config(){}
 }
