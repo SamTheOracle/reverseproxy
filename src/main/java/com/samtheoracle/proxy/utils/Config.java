@@ -3,7 +3,7 @@ package com.samtheoracle.proxy.utils;
 import java.util.Optional;
 
 public class Config {
-        public final static int PROXY_INSTANCES = Runtime.getRuntime().availableProcessors() + 1;
+        public final static int PROXY_INSTANCES = Runtime.getRuntime().availableProcessors() * 2;
         public static final String ROOT_PATH = Optional.ofNullable(System.getenv("ROOT_PATH")).orElse("/api/v1");
         public static final int PORT = Integer.parseInt(Optional.ofNullable(System.getenv("PORT")).orElse("8080"));
         public static final String REDIS_KEY_SERVICES = Optional.ofNullable(System.getenv("REDIS_KEY_SERVICES"))
@@ -21,4 +21,5 @@ public class Config {
                         .orElse("proxy-keystore-local.jks");
         public static final Boolean SSL = Optional.ofNullable(Boolean.parseBoolean(System.getenv("SSL"))).orElse(false);
 
+        private Config(){}
 }

@@ -27,14 +27,14 @@ public class StressTest {
             // System.out.println(event.cause().getMessage());
             // }
             // });
-            client.getAbs("http://findmycar-proxy.com/proxy/api/v1/users/telegram/508229488")
-                    .putHeader(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE.toString(), "30").send(event -> {
-                        System.out.println("done with " + i + "-th request");
-                        if (event.failed()) {
-                            System.out.println(event.cause().getMessage());
-                        }
-                    });
-            client.getAbs(REMOTE).putHeader(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE.toString(), "30").send(event -> {
+            // client.getAbs("http://findmycar-proxy.com/proxy/api/v1/users/telegram/508229488")
+            //         .putHeader(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE.toString(), "30").send(event -> {
+            //             System.out.println("done with " + i + "-th request");
+            //             if (event.failed()) {
+            //                 System.out.println(event.cause().getMessage());
+            //             }
+            //         });
+            client.getAbs(LOCAL).putHeader(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE.toString(), "30").send(event -> {
                 System.out.println("done with " + i + "-th");
                 if (event.failed()) {
                     System.out.println(event.cause().getMessage());
