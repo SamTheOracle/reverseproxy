@@ -104,11 +104,11 @@ public class ProxyServer extends RestEndpoint {
     }
 
     private void handleGetServices(RoutingContext routingContext) {
-        Map<ServiceSearchParameter, String> query = new HashMap<>();
+        Map<ServiceSearchParameter, List<String>> query = new HashMap<>();
         Arrays.stream(ServiceSearchParameter.values()).forEach(serviceSearchParameter -> {
             List<String> queryParam = routingContext.queryParam(serviceSearchParameter.name());
-            if (queryParam != null) {
-                query.put(serviceSearchParameter, queryParam.get(0));
+            if (!queryParam.isEmpty()) {
+                query.put(serviceSearchParameter, queryParam);
             }
         });
 

@@ -1,5 +1,7 @@
 package com.samtheoracle.proxy.server;
 
+import com.oracolo.database.redis.RedisAccessVerticle;
+import com.samtheoracle.proxy.utils.MockService1;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.client.WebClient;
@@ -11,67 +13,72 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(VertxExtension.class)
-class ProxyServerTest {
+class ProxyRerouteTest {
 
     @BeforeAll
     static void setUp(Vertx vertx, VertxTestContext testContext) {
-        vertx.deployVerticle(new ProxyServer(), proxyAsync -> vertx.deployVerticle(new MockService(), testContext.completing()));
+        vertx.deployVerticle(new RedisAccessVerticle(), redisAsync -> vertx.deployVerticle(new ProxyServer(), proxyAsync -> vertx.deployVerticle(new MockService1(), testContext.completing())));
 
     }
 
     @Test
-    void simpleGet(Vertx vertx, VertxTestContext testContext) {
-        WebClient.create(vertx).get(8080, "localhost", "/api/v1/" + MockService.PATH + "/welcome")
+    void rerouteGet(Vertx vertx, VertxTestContext testContext) {
+        WebClient client = WebClient.create(vertx);
+        client.get(8080, "localhost", "/api/v1/" + MockService1.PATH + "/welcome")
                 .expect(ResponsePredicate.SC_OK)
                 .send(event -> {
                     if (event.succeeded()) {
-                        System.out.println(event.result().bodyAsString());
                         testContext.completeNow();
                     } else {
                         testContext.failNow(event.cause());
                     }
+                    client.close();
                 });
+
     }
 
     @Test
-    void simplePut(Vertx vertx, VertxTestContext testContext) {
-        WebClient.create(vertx).put(8080, "localhost", "/api/v1/" + MockService.PATH + "/putMethod")
+    void reroutePut(Vertx vertx, VertxTestContext testContext) {
+        WebClient client = WebClient.create(vertx);
+        client.put(8080, "localhost", "/api/v1/" + MockService1.PATH + "/putMethod")
                 .expect(ResponsePredicate.SC_OK)
                 .sendBuffer(new JsonObject().put("test", 12).toBuffer(), event -> {
                     if (event.succeeded()) {
-                        System.out.println(event.result().bodyAsString());
                         testContext.completeNow();
                     } else {
                         testContext.failNow(event.cause());
                     }
+                    client.close();
                 });
     }
 
     @Test
-    void simplePost(Vertx vertx, VertxTestContext testContext) {
-        WebClient.create(vertx).post(8080, "localhost", "/api/v1/" + MockService.PATH + "/postMethod")
+    void reroutePost(Vertx vertx, VertxTestContext testContext) {
+        WebClient client = WebClient.create(vertx);
+        client.post(8080, "localhost", "/api/v1/" + MockService1.PATH + "/postMethod")
                 .expect(ResponsePredicate.SC_CREATED)
                 .sendBuffer(new JsonObject().put("test", 12).toBuffer(), event -> {
                     if (event.succeeded()) {
-                        System.out.println(event.result().bodyAsString());
                         testContext.completeNow();
                     } else {
                         testContext.failNow(event.cause());
                     }
+                    client.close();
                 });
     }
 
     @Test
-    void simpleDelete(Vertx vertx, VertxTestContext testContext) {
-        WebClient.create(vertx).delete(8080, "localhost", "/api/v1/" + MockService.PATH + "/deleteMethod")
+    void rerouteDelete(Vertx vertx, VertxTestContext testContext) {
+        WebClient client = WebClient.create(vertx);
+        client.delete(8080, "localhost", "/api/v1/" + MockService1.PATH + "/deleteMethod")
                 .expect(ResponsePredicate.SC_NO_CONTENT)
                 .send(event -> {
                     if (event.succeeded()) {
-                        System.out.println(event.result().bodyAsString());
                         testContext.completeNow();
                     } else {
                         testContext.failNow(event.cause());
                     }
+                    client.close();
                 });
     }
 }

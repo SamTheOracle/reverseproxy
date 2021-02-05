@@ -1,5 +1,6 @@
-package com.samtheoracle.proxy.server;
+package com.samtheorcle.proxy.stress;
 
+import com.samtheoracle.proxy.server.CachedResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Vertx;
@@ -7,7 +8,6 @@ import io.vertx.core.json.Json;
 import io.vertx.ext.web.client.WebClient;
 
 import java.util.Random;
-import java.util.stream.IntStream;
 
 public class NormalUsageSimulator {
 

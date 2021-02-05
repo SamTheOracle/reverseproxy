@@ -23,7 +23,6 @@ services:
     container_name: localproxy_redis
     image: redis
     ports:
-<<<<<<< HEAD
       - 6380:6379
   #  users:
   #     image: oracolo/findmycar:users
@@ -100,8 +99,6 @@ services:
   #     depends_on:
   #       - mongodb
   #       - proxy
-=======
-    - 6380:6379
   # users:
   #   image: oracolo/findmycar:users
   #   container_name: proxy_users_api
@@ -177,7 +174,6 @@ services:
   #   depends_on:
   #     - mongodb
   #     - proxy
->>>>>>> cleaning a bit
   mongodb:
     image: mongo
     container_name: proxy_mongo_db
