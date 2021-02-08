@@ -15,8 +15,9 @@ public class StressTest {
     public static String LOCAL = "http://localhost:80/proxy/api/v1/tracks/508229488/vehicles";
 
     public static void main(String[] args) {
-        String value = "gt34759023098432qwegt12345";
+        String value = "lte2021-02-08T11:22:06.196759";
         String[] split = value.split("gt");
+        String test = value.substring(3);
         Vertx vertx = Vertx.vertx();
         WebClient client = WebClient.create(vertx);
         IntStream.range(0, 30000).forEach(i -> {

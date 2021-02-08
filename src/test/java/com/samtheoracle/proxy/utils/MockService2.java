@@ -4,18 +4,13 @@ import com.samtheoracle.proxy.server.RestEndpoint;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Promise;
 import io.vertx.core.buffer.Buffer;
-import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.client.WebClient;
-import io.vertx.ext.web.client.predicate.ResponsePredicate;
 import io.vertx.ext.web.handler.BodyHandler;
-import io.vertx.servicediscovery.Record;
-import io.vertx.servicediscovery.types.HttpEndpoint;
 
 public class MockService2 extends RestEndpoint {
 
-    public static final String PATH = "test";
+    public static final String PATH = "test2";
 
     @Override
     public void start(Promise<Void> startPromise) throws Exception {
@@ -28,16 +23,12 @@ public class MockService2 extends RestEndpoint {
         router.delete("/" + PATH + "/deleteMethod").handler(this::handleDelete);
         vertx.createHttpServer().requestHandler(router).listen(9001, event -> {
             if (event.succeeded()) {
-                Record record = HttpEndpoint.createRecord("testmicroservice2", "localhost", event.result().actualPort(), PATH);
-                WebClient.create(vertx).post(8080, "localhost", "/services")
-                        .expect(ResponsePredicate.SC_CREATED)
-                        .sendBuffer(JsonObject.mapFrom(record).toBuffer(), httpResponseAsync -> {
-                            if (httpResponseAsync.succeeded()) {
-                                startPromise.complete();
-                            } else {
-                                startPromise.fail(httpResponseAsync.cause());
-                            }
-                        });
+                if (event.succeeded()) {
+                    TestUtils.publishRecord(vertx, TestUtils.record(event.result().actualPort(), "testmicroservice2", PATH))
+                            .future()
+                            .onSuccess(publishResponse -> startPromise.complete())
+                            .onFailure(startPromise::fail);
+                }
             }
         });
 

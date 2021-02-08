@@ -4,14 +4,9 @@ import com.samtheoracle.proxy.server.RestEndpoint;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Promise;
 import io.vertx.core.buffer.Buffer;
-import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.client.WebClient;
-import io.vertx.ext.web.client.predicate.ResponsePredicate;
 import io.vertx.ext.web.handler.BodyHandler;
-import io.vertx.servicediscovery.Record;
-import io.vertx.servicediscovery.types.HttpEndpoint;
 
 public class MockService1 extends RestEndpoint {
 
@@ -28,16 +23,10 @@ public class MockService1 extends RestEndpoint {
         router.delete("/" + PATH + "/deleteMethod").handler(this::handleDelete);
         vertx.createHttpServer().requestHandler(router).listen(9000, event -> {
             if (event.succeeded()) {
-                Record record = HttpEndpoint.createRecord("testmicroservice", "localhost", event.result().actualPort(), PATH);
-                WebClient.create(vertx).post(8080, "localhost", "/services")
-                        .expect(ResponsePredicate.SC_CREATED)
-                        .sendBuffer(JsonObject.mapFrom(record).toBuffer(), httpResponseAsync -> {
-                            if (httpResponseAsync.succeeded()) {
-                                startPromise.complete();
-                            } else {
-                                startPromise.fail(httpResponseAsync.cause());
-                            }
-                        });
+                TestUtils.publishRecord(vertx, TestUtils.record(event.result().actualPort(), "testmicroservice", PATH))
+                        .future()
+                        .onSuccess(publishResponse -> startPromise.complete())
+                        .onFailure(startPromise::fail);
             }
         });
 

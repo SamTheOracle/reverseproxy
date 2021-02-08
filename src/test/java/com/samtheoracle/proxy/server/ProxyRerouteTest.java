@@ -2,22 +2,36 @@ package com.samtheoracle.proxy.server;
 
 import com.oracolo.database.redis.RedisAccessVerticle;
 import com.samtheoracle.proxy.utils.MockService1;
+import io.vertx.core.CompositeFuture;
+import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.predicate.ResponsePredicate;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @ExtendWith(VertxExtension.class)
 class ProxyRerouteTest {
 
     @BeforeAll
     static void setUp(Vertx vertx, VertxTestContext testContext) {
-        vertx.deployVerticle(new RedisAccessVerticle(), redisAsync -> vertx.deployVerticle(new ProxyServer(), proxyAsync -> vertx.deployVerticle(new MockService1(), testContext.completing())));
+        vertx.deployVerticle(new RedisAccessVerticle(), redisAsync -> vertx.deployVerticle(new ProxyServer(), proxyAsync -> WebClient.create(vertx)
+                .delete(8080, "localhost", "/services/all").send(responseAsync -> {
+                    if (responseAsync.succeeded()) {
+                        vertx.deployVerticle(new MockService1(), testContext.completing());
+                    } else {
+                        testContext.failNow(responseAsync.cause());
+                    }
+                })));
 
     }
 
@@ -80,5 +94,18 @@ class ProxyRerouteTest {
                     }
                     client.close();
                 });
+    }
+
+    @AfterAll
+    static void tearDown(Vertx vertx, VertxTestContext testContext) {
+        List<Promise<Void>> undeployPromises = new ArrayList<>();
+        vertx.deploymentIDs().forEach(id -> {
+
+            Promise<Void> undeployPromise = Promise.promise();
+            vertx.undeploy(id, undeployPromise);
+            undeployPromises.add(undeployPromise);
+        });
+        CompositeFuture.all(undeployPromises.stream().map(Promise::future).collect(Collectors.toList()))
+                .onComplete(event -> testContext.completeNow());
     }
 }

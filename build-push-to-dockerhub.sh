@@ -1,7 +1,8 @@
 #!/bin/bash
-# docker start localredis
-mvn clean install -DskipTests
-# docker stop localredis
+docker-compose stop
+docker start localredis
+mvn clean install
+docker stop localredis
 cd apache
 docker build --tag oracolo/apache .
 docker push oracolo/apache

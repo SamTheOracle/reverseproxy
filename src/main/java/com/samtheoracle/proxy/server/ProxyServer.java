@@ -27,24 +27,25 @@ import io.vertx.servicediscovery.Record;
 import io.vertx.servicediscovery.ServiceDiscovery;
 
 import java.util.*;
+import java.util.function.Function;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 public class ProxyServer extends RestEndpoint {
     private static final Logger LOGGER = Logger.getLogger(ProxyServer.class.getName());
+    private static final String REGISTRATION_ID = "registrationId";
 
     private CacheService cacheService;
-    private ServiceDiscovery discovery;
-    private WebClient client;
     private ServiceHandler serviceHandler;
     private ProxyHandler proxyHandler;
 
     @Override
     public void start(Promise<Void> startPromise) throws Exception {
         super.start();
+        final ServiceDiscovery discovery = createDiscovery();
+        final WebClient client = ClientUtils.httpClient(vertx);
 
         this.cacheService = new CacheService(vertx);
-        this.discovery = createDiscovery(Config.REDIS_DB_HOST, Config.REDIS_DB_PORT, Config.REDIS_KEY_SERVICES);
-        this.client = ClientUtils.httpClient(vertx);
         this.serviceHandler = new ServiceHandler(discovery);
         this.proxyHandler = new ProxyHandler(client, serviceHandler);
 
@@ -66,7 +67,9 @@ public class ProxyServer extends RestEndpoint {
                         .end("Welcome to ssl proxy!"));
         router.post("/services").handler(this::handleServiceCreation);
         router.get("/services").handler(this::handleGetServices);
-        router.delete("/services").handler(this::handleDeleteAllServices);
+        router.get("/service/:" + REGISTRATION_ID).handler(this::handleGetServiceById);
+        router.delete("/services/all").handler(this::handleDeleteAllServices);
+        router.delete("/services/:" + REGISTRATION_ID).handler(this::handleDeleteById);
         router.route(Config.ROOT_PATH + "/*").handler(routingContext -> {
             String uri = routingContext.request().uri().split(Config.ROOT_PATH)[1];
             String root = routingContext.normalisedPath().split("/")[3];
@@ -97,6 +100,28 @@ public class ProxyServer extends RestEndpoint {
 
     }
 
+    private void handleDeleteById(RoutingContext routingContext) {
+        String registration = routingContext.pathParam(REGISTRATION_ID);
+        if (registration == null || registration.isEmpty()) {
+            BadRequest("Wrong registration id", routingContext);
+            return;
+        }
+        serviceHandler.deleteRecordByRegistration(registration).future()
+                .onSuccess(record -> NoContent(new HashMap<>(), routingContext))
+                .onFailure(cause -> BadRequest(cause.getMessage(), routingContext));
+    }
+
+    private void handleGetServiceById(RoutingContext routingContext) {
+        String registration = routingContext.pathParam(REGISTRATION_ID);
+        if (registration == null || registration.isEmpty()) {
+            BadRequest("Wrong registration id", routingContext);
+            return;
+        }
+        serviceHandler.getRecordByRegistration(registration).future()
+                .onSuccess(record -> Ok(JsonObject.mapFrom(record), new HashMap<>(), routingContext))
+                .onFailure(cause -> BadRequest(cause.getMessage(), routingContext));
+    }
+
     private void handleDeleteAllServices(RoutingContext routingContext) {
         serviceHandler.deleteAllRecords().future()
                 .onSuccess(aVoid -> NoContent(new HashMap<>(), routingContext))
@@ -121,9 +146,16 @@ public class ProxyServer extends RestEndpoint {
         }
 
         promise.future().onSuccess(records -> {
-            JsonArray jsonArray = new JsonArray();
-            records.stream().map(JsonObject::mapFrom).forEach(jsonArray::add);
-            Ok(jsonArray, new HashMap<>(), routingContext);
+            if (query.containsKey(ServiceSearchParameter.format) && Boolean.parseBoolean(query.get(ServiceSearchParameter.format).get(0))) {
+                JsonObject groupedByName = new JsonObject(records.stream().collect(Collectors.toMap(Record::getName, Function.identity())));
+                Ok(groupedByName, new HashMap<>(), routingContext);
+            } else {
+                JsonArray jsonArray = new JsonArray();
+                records.stream().map(JsonObject::mapFrom).forEach(jsonArray::add);
+                Ok(jsonArray, new HashMap<>(), routingContext);
+            }
+
+
         }).onFailure(cause -> NotFound(cause.getMessage(), routingContext));
     }
 

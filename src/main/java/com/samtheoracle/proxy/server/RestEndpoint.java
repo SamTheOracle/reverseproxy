@@ -1,5 +1,6 @@
 package com.samtheoracle.proxy.server;
 
+import com.samtheoracle.proxy.utils.Config;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
@@ -119,12 +120,12 @@ public abstract class RestEndpoint extends AbstractVerticle {
                 });
         return httpServerPromise;
     }
-    
-    protected ServiceDiscovery createDiscovery(String redisHost, String redisPort, String redisEndpointsKey) {
+
+    protected ServiceDiscovery createDiscovery() {
         return ServiceDiscovery.create(vertx, new ServiceDiscoveryOptions()
-                .setBackendConfiguration(new JsonObject().put("host", redisHost)
-                        .put("port", redisPort)
-                        .put("key", redisEndpointsKey)));
+                .setBackendConfiguration(new JsonObject().put("host", Config.REDIS_DB_HOST)
+                        .put("port", Config.REDIS_DB_PORT)
+                        .put("key", Config.REDIS_KEY_SERVICES)));
     }
 
 

@@ -4,7 +4,6 @@ import com.samtheoracle.proxy.server.ProxyServer;
 import com.samtheoracle.proxy.server.RestEndpoint;
 import com.samtheoracle.proxy.utils.ClientUtils;
 import com.samtheoracle.proxy.utils.Config;
-
 import io.vertx.core.Promise;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.predicate.ResponsePredicate;
@@ -22,7 +21,7 @@ public class HealthCheckVerticle extends RestEndpoint {
     public void start() throws Exception {
 
         LOGGER.info("Starting periodic health check");
-        discovery = createDiscovery(Config.REDIS_DB_HOST, Config.REDIS_DB_PORT, Config.REDIS_KEY_SERVICES);
+        discovery = createDiscovery();
         webClient = ClientUtils.httpClient(vertx);
         vertx.setPeriodic(Config.HEARTBEAT * 1000, this::health);
     }

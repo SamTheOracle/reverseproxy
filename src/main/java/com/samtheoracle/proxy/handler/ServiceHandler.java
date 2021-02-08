@@ -3,6 +3,7 @@ package com.samtheoracle.proxy.handler;
 import com.samtheoracle.proxy.search.QuerySearch;
 import com.samtheoracle.proxy.search.ServiceSearchParameter;
 import io.vertx.core.CompositeFuture;
+import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonObject;
 import io.vertx.servicediscovery.Record;
@@ -12,6 +13,7 @@ import io.vertx.servicediscovery.types.HttpEndpoint;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -31,7 +33,11 @@ public class ServiceHandler {
                 new JsonObject().put("creationDate", LocalDateTime.now().toString()));
         Promise<Record> finalResult = Promise.promise();
         Promise<Record> serviceAlreadyPresent = Promise.promise();
-        discovery.getRecord(r -> r.getName().equals(record.getName()) && r.getLocation().getString("host").equals(record.getLocation().getString("host")), serviceAlreadyPresent);
+        Function<Record, Boolean> alreadyPresentCondition = r -> r.getName().equals(record.getName())
+                || r.getLocation().getString("root").equals(record.getLocation().getString("root"));
+
+        discovery.getRecord(alreadyPresentCondition, serviceAlreadyPresent);
+
         serviceAlreadyPresent.future().onSuccess(alreadyPresentRecord -> {
             if (alreadyPresentRecord == null) {
                 discovery.publish(record, finalResult);
@@ -89,10 +95,10 @@ public class ServiceHandler {
                         LocalDateTime date;
                         if (Arrays.stream(QuerySearch.values()).anyMatch(qs -> qs.name().equals(value.substring(0, 3)))) {
                             querySearchOptional = Arrays.stream(QuerySearch.values()).filter(qs -> qs.name().equals(value.substring(0, 3))).findFirst();
-                            date = LocalDateTime.parse(value.substring(3, value.length() - 1));
+                            date = LocalDateTime.parse(value.substring(3));
                         } else if (Arrays.stream(QuerySearch.values()).anyMatch(qs -> qs.name().equals(value.substring(0, 2)))) {
                             querySearchOptional = Arrays.stream(QuerySearch.values()).filter(qs -> qs.name().equals(value.substring(0, 2))).findFirst();
-                            date = LocalDateTime.parse(value.substring(2, value.length() - 1));
+                            date = LocalDateTime.parse(value.substring(2));
                         } else {
                             date = LocalDateTime.parse(value);
                         }
@@ -191,19 +197,21 @@ public class ServiceHandler {
         return finalResult;
     }
 
-    public Promise<Void> deleteAllRecords() {
-        Promise<Void> finalResult = Promise.promise();
+    public Promise<String> deleteAllRecords() {
+        Promise<String> finalResult = Promise.promise();
         Promise<List<Record>> recordsPromise = Promise.promise();
-        List<Promise<Void>> unpublishPromises = new ArrayList<>();
 
         discovery.getRecords(record -> true, recordsPromise);
 
-        recordsPromise.future().onSuccess(records -> records.forEach(record -> {
-            Promise<Void> unpublishPromise = Promise.promise();
-            discovery.unpublish(record.getRegistration(), unpublishPromise);
-            unpublishPromises.add(unpublishPromise);
-        }));
-        CompositeFuture.all(unpublishPromises.stream().map(Promise::future).collect(Collectors.toList()))
+        recordsPromise.future().compose(records -> {
+            List<Promise<Void>> unpublishPromises = new ArrayList<>();
+            records.forEach(record -> {
+                Promise<Void> unpublishPromise = Promise.promise();
+                discovery.unpublish(record.getRegistration(), unpublishPromise);
+                unpublishPromises.add(unpublishPromise);
+            });
+            return Future.succeededFuture(unpublishPromises);
+        }).compose(unpublishPromises -> CompositeFuture.all(unpublishPromises.stream().map(Promise::future).collect(Collectors.toList())))
                 .onSuccess(event -> finalResult.complete())
                 .onFailure(finalResult::fail);
         return finalResult;
@@ -211,7 +219,20 @@ public class ServiceHandler {
 
     public Promise<Record> getRecordByRoot(String root) {
         Promise<Record> finalResult = Promise.promise();
-        discovery.getRecord(record -> record.getLocation().getString("root").equals(root), recordAsync -> {
+        discovery.getRecords(record -> record.getLocation().getString("root").equals(root), recordAsync -> {
+            if (recordAsync.succeeded() && !recordAsync.result().isEmpty()) {
+                finalResult.complete(recordAsync.result().get(0));
+            } else {
+                finalResult.fail("No service found");
+            }
+        });
+        return finalResult;
+    }
+
+
+    public Promise<Record> getRecordByRegistration(String registration) {
+        Promise<Record> finalResult = Promise.promise();
+        discovery.getRecord(record -> record.getRegistration().equals(registration), recordAsync -> {
             if (recordAsync.succeeded() && recordAsync.result() != null) {
                 finalResult.complete(recordAsync.result());
             } else {
@@ -221,5 +242,9 @@ public class ServiceHandler {
         return finalResult;
     }
 
-
+    public Promise<Void> deleteRecordByRegistration(String registration) {
+        Promise<Void> finalResult = Promise.promise();
+        discovery.unpublish(registration, finalResult);
+        return finalResult;
+    }
 }

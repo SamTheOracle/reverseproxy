@@ -22,6 +22,7 @@ public class Config {
                 .orElse("proxy-keystore-local.jks");
         public static final Boolean SSL = Optional.of(Boolean.parseBoolean(System.getenv("SSL"))).orElse(false);
 
+        public static final Boolean HEALTHCHECK = Optional.of(Boolean.parseBoolean(System.getenv("HEALTHCHECK"))).orElse(false);
 
         private Config(){}
 }
