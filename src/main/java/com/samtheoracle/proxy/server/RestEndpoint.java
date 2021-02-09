@@ -17,6 +17,7 @@ import io.vertx.servicediscovery.ServiceDiscovery;
 import io.vertx.servicediscovery.ServiceDiscoveryOptions;
 
 import java.util.Map;
+import java.util.UUID;
 
 public abstract class RestEndpoint extends AbstractVerticle {
 
@@ -123,6 +124,7 @@ public abstract class RestEndpoint extends AbstractVerticle {
 
     protected ServiceDiscovery createDiscovery() {
         return ServiceDiscovery.create(vertx, new ServiceDiscoveryOptions()
+                .setName(UUID.randomUUID().toString())
                 .setBackendConfiguration(new JsonObject().put("host", Config.REDIS_DB_HOST)
                         .put("port", Config.REDIS_DB_PORT)
                         .put("key", Config.REDIS_KEY_SERVICES)));

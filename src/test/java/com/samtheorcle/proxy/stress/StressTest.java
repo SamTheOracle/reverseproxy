@@ -15,30 +15,27 @@ public class StressTest {
     public static String LOCAL = "http://localhost:80/proxy/api/v1/tracks/508229488/vehicles";
 
     public static void main(String[] args) {
-        String value = "lte2021-02-08T11:22:06.196759";
-        String[] split = value.split("gt");
-        String test = value.substring(3);
+
         Vertx vertx = Vertx.vertx();
         WebClient client = WebClient.create(vertx);
         IntStream.range(0, 30000).forEach(i -> {
 
             System.out.println("making http request " + i + "-th");
-            // users/telegram/508229488
-            // client.getAbs("http://findmycar-proxy.com/proxy/api/v1/tracks/positions/508229488").send(event
-            // -> {
-            // System.out.println("done with " + i + "-th request");
-            // if (event.failed()) {
-            // System.out.println(event.cause().getMessage());
-            // }
-            // });
-            // client.getAbs("http://findmycar-proxy.com/proxy/api/v1/users/telegram/508229488")
-            //         .putHeader(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE.toString(), "30").send(event -> {
-            //             System.out.println("done with " + i + "-th request");
-            //             if (event.failed()) {
-            //                 System.out.println(event.cause().getMessage());
-            //             }
-            //         });
-            client.getAbs(LOCAL).putHeader(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE.toString(), "30").send(event -> {
+            client.getAbs("http://findmycar-proxy.com/proxy/api/v1/tracks/positions/508229488").send(event
+                    -> {
+                System.out.println("done with " + i + "-th request");
+                if (event.failed()) {
+                    System.out.println(event.cause().getMessage());
+                }
+            });
+            client.getAbs("http://findmycar-proxy.com/proxy/api/v1/users/telegram/508229488")
+                    .putHeader(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE.toString(), "30").send(event -> {
+                System.out.println("done with " + i + "-th request");
+                if (event.failed()) {
+                    System.out.println(event.cause().getMessage());
+                }
+            });
+            client.getAbs(REMOTE).putHeader(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE.toString(), "30").send(event -> {
                 System.out.println("done with " + i + "-th");
                 if (event.failed()) {
                     System.out.println(event.cause().getMessage());
