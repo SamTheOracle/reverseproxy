@@ -1,8 +1,7 @@
 package com.samtheoracle.proxy.server;
 
-import com.oracolo.database.redis.RedisEntity;
 
-public class CachedResponse extends RedisEntity {
+public class CachedResponse {
 
   private boolean cached;
 

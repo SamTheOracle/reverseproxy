@@ -1,10 +1,9 @@
 package com.samtheoracle.proxy.server;
 
-import com.oracolo.database.redis.RedisOptions;
-import com.samtheoracle.proxy.handler.ProxyHandler;
-import com.samtheoracle.proxy.handler.ServiceHandler;
 import com.samtheoracle.proxy.search.ServiceSearchParameter;
 import com.samtheoracle.proxy.services.CacheService;
+import com.samtheoracle.proxy.services.DiscoveryService;
+import com.samtheoracle.proxy.services.ProxyService;
 import com.samtheoracle.proxy.utils.ClientUtils;
 import com.samtheoracle.proxy.utils.Config;
 import com.samtheoracle.proxy.utils.SSLUtils;
@@ -36,8 +35,8 @@ public class ProxyServer extends RestEndpoint {
     private static final String REGISTRATION_ID = "registrationId";
 
     private CacheService cacheService;
-    private ServiceHandler serviceHandler;
-    private ProxyHandler proxyHandler;
+    private DiscoveryService discoveryService;
+    private ProxyService proxyService;
 
     @Override
     public void start(Promise<Void> startPromise) throws Exception {
@@ -46,8 +45,8 @@ public class ProxyServer extends RestEndpoint {
         final WebClient client = ClientUtils.httpClient(vertx);
 
         this.cacheService = new CacheService(vertx);
-        this.serviceHandler = new ServiceHandler(discovery);
-        this.proxyHandler = new ProxyHandler(client, serviceHandler);
+        this.discoveryService = new DiscoveryService(discovery);
+        this.proxyService = new ProxyService(client, discoveryService);
 
         final Router router = Router.router(vertx);
         router.route().handler(CorsHandler.create(".*.").allowedHeader(HttpHeaderNames.CONTENT_TYPE.toString())
@@ -72,7 +71,7 @@ public class ProxyServer extends RestEndpoint {
         router.delete("/services/:" + REGISTRATION_ID).handler(this::handleDeleteById);
         router.route(Config.ROOT_PATH + "/*").handler(routingContext -> {
             String uri = routingContext.request().uri().split(Config.ROOT_PATH)[1];
-            String root = routingContext.normalisedPath().split("/")[3];
+            String root = routingContext.normalizedPath().split("/")[3];
             rerouteToService(routingContext, "/" + root, uri);
         });
 
@@ -106,7 +105,7 @@ public class ProxyServer extends RestEndpoint {
             BadRequest("Wrong registration id", routingContext);
             return;
         }
-        serviceHandler.deleteRecordByRegistration(registration).future()
+        discoveryService.deleteRecordByRegistration(registration).future()
                 .onSuccess(record -> NoContent(new HashMap<>(), routingContext))
                 .onFailure(cause -> BadRequest(cause.getMessage(), routingContext));
     }
@@ -117,13 +116,13 @@ public class ProxyServer extends RestEndpoint {
             BadRequest("Wrong registration id", routingContext);
             return;
         }
-        serviceHandler.getRecordByRegistration(registration).future()
+        discoveryService.getRecordByRegistration(registration).future()
                 .onSuccess(record -> Ok(JsonObject.mapFrom(record), new HashMap<>(), routingContext))
                 .onFailure(cause -> BadRequest(cause.getMessage(), routingContext));
     }
 
     private void handleDeleteAllServices(RoutingContext routingContext) {
-        serviceHandler.deleteAllRecords().future()
+        discoveryService.deleteAllRecords().future()
                 .onSuccess(aVoid -> NoContent(new HashMap<>(), routingContext))
                 .onFailure(cause -> ServerError(cause.getMessage(), routingContext));
     }
@@ -140,9 +139,9 @@ public class ProxyServer extends RestEndpoint {
         Promise<List<Record>> promise;
 
         if (query.isEmpty()) {
-            promise = serviceHandler.getRecords();
+            promise = discoveryService.getRecords();
         } else {
-            promise = serviceHandler.getRecords(query);
+            promise = discoveryService.getRecords(query);
         }
 
         promise.future().onSuccess(records -> {
@@ -162,7 +161,7 @@ public class ProxyServer extends RestEndpoint {
     private void handleServiceCreation(RoutingContext routingContext) {
         JsonObject recordJson = routingContext.getBodyAsJson();
 
-        serviceHandler.createRecord(recordJson).future()
+        discoveryService.createRecord(recordJson).future()
                 .onSuccess(record -> {
                     LOGGER.info("correctly published");
                     LOGGER.info(JsonObject.mapFrom(record).encodePrettily());
@@ -185,8 +184,7 @@ public class ProxyServer extends RestEndpoint {
         HttpServerResponse httpServerResponse = routingContext.response();
         HttpMethod method = httpServerRequest.method();
         if (body != null && !body.toString().isEmpty()) {
-            proxyHandler.reroute(root, uri, method, 1000, body, httpServerRequest.headers())
-                    .future()
+            proxyService.reroute(root, uri, method, 1000, body, httpServerRequest.headers())
                     .onSuccess(httpResponseFromService -> {
                         Buffer bodyFromService = httpResponseFromService.body();
                         httpResponseFromService.headers().forEach(header -> httpServerResponse.putHeader(header.getKey(), header.getValue()));
@@ -203,48 +201,46 @@ public class ProxyServer extends RestEndpoint {
             cacheService.findCachedResponse(uri).future().onSuccess(cacheResponse -> {
                 LOGGER.info("Retrieving " + uri + " from redis");
                 Ok(JsonObject.mapFrom(cacheResponse), headers, routingContext);
-            }).onFailure(cause -> proxyHandler.reroute(root, uri, method, 1000, httpServerRequest.headers())
-                    .future().onSuccess(httpResponseFromService -> {
-                        if (httpResponseFromService.statusCode() == HttpResponseStatus.OK.code()) {
+            }).onFailure(cause -> proxyService.reroute(root, uri, method, 1000, httpServerRequest.headers()).onSuccess(httpResponseFromService -> {
+                if (httpResponseFromService.statusCode() == HttpResponseStatus.OK.code()) {
 
 
-                            Buffer responseBody = httpResponseFromService.body();
-                            // send back result and cache in redis
-                            int cacheAge = Math.min(Integer.parseInt(Optional.ofNullable(httpServerRequest.headers().get(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE)).orElse("0")),
-                                    Config.CACHE_MAX_AGE);
-                            // if responsobody is not a JSON string, it breaks
+                    Buffer responseBody = httpResponseFromService.body();
+                    // send back result and cache in redis
+                    int cacheAge = Math.min(Integer.parseInt(Optional.ofNullable(httpServerRequest.headers().get(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE)).orElse("0")),
+                            Config.CACHE_MAX_AGE);
+                    // if responsobody is not a JSON string, it breaks
 
-                            CachedResponse cachedResponse;
-                            try {
-                                cachedResponse = new CachedResponse(responseBody.toJson(), false);
-                            } catch (Exception e) {
-                                cachedResponse = new CachedResponse(responseBody.toString(), false);
-                            }
-                            JsonObject httpServerResponseJson = JsonObject.mapFrom(cachedResponse);
-                            int bytes = httpServerResponseJson.encode().getBytes().length;
-                            httpResponseFromService.headers().forEach(header -> httpServerResponse.putHeader(header.getKey(), header.getValue()));
-                            httpServerResponse.putHeader(HttpHeaderNames.CONTENT_LENGTH, String.valueOf(bytes));
-                            httpServerResponse.setStatusCode(httpResponseFromService.statusCode())
-                                    .putHeader(HttpHeaderNames.FROM, "Proxy instance " + this)
-                                    .end(httpServerResponseJson.toBuffer());
-                            if (cacheAge != 0) {
-                                LOGGER.info(httpServerResponseJson.encodePrettily());
-                                cachedResponse.setCached(true);
-                                cachedResponse.setRedisOptions(new RedisOptions().setCacheExpiration(cacheAge).setKey(uri));
-                                cacheService.saveCachedResponse(cachedResponse).future()
-                                        .onSuccess(redis -> LOGGER.info("successfully cached get request " + uri))
-                                        .onFailure(reason -> LOGGER.info("could not cache in redis " + reason.getMessage()));
-                            }
-                        } else {
-                            JsonObject errorJson = new JsonObject().put("status", httpResponseFromService.statusCode())
-                                    .put("error", Optional.ofNullable(httpResponseFromService.body()).orElse(Buffer.buffer("No error description from request " + uri)).toString());
-                            httpServerResponse.putHeader(HttpHeaderNames.FROM, "Proxy instance " + this)
-                                    .setStatusCode(httpResponseFromService.statusCode()).end(errorJson.encode());
-                        }
-                    }).onFailure(reason -> ServerError(reason.getMessage(), routingContext)));
+                    CachedResponse cachedResponse;
+                    try {
+                        cachedResponse = new CachedResponse(responseBody.toJson(), false);
+                    } catch (Exception e) {
+                        cachedResponse = new CachedResponse(responseBody.toString(), false);
+                    }
+                    JsonObject httpServerResponseJson = JsonObject.mapFrom(cachedResponse);
+                    int bytes = httpServerResponseJson.encode().getBytes().length;
+                    httpResponseFromService.headers().forEach(header -> httpServerResponse.putHeader(header.getKey(), header.getValue()));
+                    httpServerResponse.putHeader(HttpHeaderNames.CONTENT_LENGTH, String.valueOf(bytes));
+                    httpServerResponse.setStatusCode(httpResponseFromService.statusCode())
+                            .putHeader(HttpHeaderNames.FROM, "Proxy instance " + this)
+                            .end(httpServerResponseJson.toBuffer());
+                    if (cacheAge != 0) {
+                        LOGGER.info(httpServerResponseJson.encodePrettily());
+                        cachedResponse.setCached(true);
+                        cacheService.saveCachedResponse(uri, cacheAge, cachedResponse).future()
+                                .onSuccess(redis -> LOGGER.info("successfully cached get request " + uri))
+                                .onFailure(reason -> LOGGER.info("could not cache in redis " + reason.getMessage()));
+                    }
+                } else {
+                    JsonObject errorJson = new JsonObject().put("status", httpResponseFromService.statusCode())
+                            .put("error", Optional.ofNullable(httpResponseFromService.body()).orElse(Buffer.buffer("No error description from request " + uri)).toString());
+                    httpServerResponse.putHeader(HttpHeaderNames.FROM, "Proxy instance " + this)
+                            .setStatusCode(httpResponseFromService.statusCode()).end(errorJson.encode());
+                }
+            }).onFailure(reason -> ServerError(reason.getMessage(), routingContext)));
 
         } else {
-            proxyHandler.reroute(root, uri, method, 1000, httpServerRequest.headers()).future().onSuccess(httpRespFromService -> {
+            proxyService.reroute(root, uri, method, 1000, httpServerRequest.headers()).onSuccess(httpRespFromService -> {
                 Buffer bodyFromService = httpRespFromService.body();
                 httpRespFromService.headers().forEach(header -> httpServerResponse.putHeader(header.getKey(), header.getValue()));
                 httpServerResponse.putHeader(HttpHeaderNames.FROM, "Proxy instance " + this).setStatusCode(httpRespFromService.statusCode());

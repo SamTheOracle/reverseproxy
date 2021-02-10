@@ -1,4 +1,4 @@
-package com.samtheoracle.proxy.handler;
+package com.samtheoracle.proxy.services;
 
 import com.samtheoracle.proxy.search.QuerySearch;
 import com.samtheoracle.proxy.search.ServiceSearchParameter;
@@ -17,11 +17,11 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-public class ServiceHandler {
+public class DiscoveryService {
 
     private final ServiceDiscovery discovery;
 
-    public ServiceHandler(ServiceDiscovery discovery) {
+    public DiscoveryService(ServiceDiscovery discovery) {
         this.discovery = discovery;
     }
 

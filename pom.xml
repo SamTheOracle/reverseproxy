@@ -14,8 +14,9 @@
         <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
         <exec-maven-plugin.version>1.5.0</exec-maven-plugin.version>
 
-        <vertx.version>3.9.1</vertx.version>
+        <vertx.version>4.0.2</vertx.version>
         <junit-jupiter.version>5.4.0</junit-jupiter.version>
+        <jackson.version>2.11.3</jackson.version>
 
         <main.verticle>com.samtheoracle.proxy.ProxyBootstrap</main.verticle>
     </properties>
@@ -99,6 +100,16 @@
             <artifactId>junit-jupiter-engine</artifactId>
             <version>${junit-jupiter.version}</version>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
         </dependency>
         <dependency>
             <groupId>com.oracolo</groupId>

@@ -2,15 +2,18 @@ package com.samtheoracle.proxy.server;
 
 import com.oracolo.database.redis.RedisAccessVerticle;
 import com.samtheoracle.proxy.utils.MockService1;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
+import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.predicate.ResponsePredicate;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,7 +30,7 @@ class ProxyRerouteTest {
         vertx.deployVerticle(new RedisAccessVerticle(), redisAsync -> vertx.deployVerticle(new ProxyServer(), proxyAsync -> WebClient.create(vertx)
                 .delete(8080, "localhost", "/services/all").send(responseAsync -> {
                     if (responseAsync.succeeded()) {
-                        vertx.deployVerticle(new MockService1(), testContext.completing());
+                        vertx.deployVerticle(new MockService1(), testContext.succeedingThenComplete());
                     } else {
                         testContext.failNow(responseAsync.cause());
                     }
@@ -43,6 +46,25 @@ class ProxyRerouteTest {
                 .send(event -> {
                     if (event.succeeded()) {
                         testContext.completeNow();
+                    } else {
+                        testContext.failNow(event.cause());
+                    }
+                    client.close();
+                });
+
+    }
+
+    @Test
+    void rerouteGetWithCache(Vertx vertx, VertxTestContext testContext) {
+        WebClient client = WebClient.create(vertx);
+        client.get(8080, "localhost", "/api/v1/" + MockService1.PATH + "/welcome")
+                .expect(ResponsePredicate.SC_OK)
+                .putHeader(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE.toString(), "30")
+                .send(event -> {
+                    if (event.succeeded()) {
+                        testContext.verify(() -> Assertions.assertDoesNotThrow(() -> event.result().bodyAsJsonObject()))
+                                .verify(() -> Assertions.assertDoesNotThrow(() -> Json.decodeValue(event.result().body(), CachedResponse.class)))
+                                .completeNow();
                     } else {
                         testContext.failNow(event.cause());
                     }

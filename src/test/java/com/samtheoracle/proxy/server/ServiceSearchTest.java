@@ -32,7 +32,7 @@ class ServiceSearchTest {
         vertx.deployVerticle(new ProxyServer(), proxyAsync -> WebClient.create(vertx)
                 .delete(8080, "localhost", "/services/all").send(responseAsync -> {
                     if (responseAsync.succeeded()) {
-                        vertx.deployVerticle(new MockService1(), mockAsync -> vertx.deployVerticle(new MockService2(), testContext.completing()));
+                        vertx.deployVerticle(new MockService1(), mockAsync -> vertx.deployVerticle(new MockService2(), testContext.succeedingThenComplete()));
                     } else {
                         testContext.failNow(responseAsync.cause());
                     }

@@ -28,7 +28,7 @@ class ServiceCRDTest {
         vertx.deployVerticle(new RedisAccessVerticle(), redisAsync -> vertx.deployVerticle(new ProxyServer(), proxyAsync -> WebClient.create(vertx)
                 .delete(8080, "localhost", "/services/all").send(responseAsync -> {
                     if (responseAsync.succeeded()) {
-                        vertx.deployVerticle(new MockService1(), testContext.completing());
+                        vertx.deployVerticle(new MockService1(), testContext.succeedingThenComplete());
                     } else {
                         testContext.failNow(responseAsync.cause());
                     }
