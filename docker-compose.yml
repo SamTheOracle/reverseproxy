@@ -174,8 +174,8 @@ services:
   #   depends_on:
   #     - mongodb
   #     - proxy
-  mongodb:
-    image: mongo
-    container_name: proxy_mongo_db
-    ports:
-      - 8655:27017
+#  mongodb:
+#    image: mongo
+#    container_name: proxy_mongo_db
+#    ports:
+#      - 8655:27017
