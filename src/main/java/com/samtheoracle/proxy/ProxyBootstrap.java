@@ -22,12 +22,7 @@ public class ProxyBootstrap extends AbstractVerticle {
 
     @Override
     public void start(Promise<Void> startPromise) throws Exception {
-        LOGGER.info(String.format(
-                "Proxy condifiguration:\nROOT_PATH %s\nPORT %s\nREDIS_KEY_SERVICES %s\nREDIS_DB_HOST %s\nREDIS_DB_PORT %s\nTIMEOUT_FAILURE %s\nHEARTBEAT %s\nCACHE_MAX_AGE %s\nKEYSTORE %s\nSSL %s",
-                Config.ROOT_PATH, Config.PORT, Config.REDIS_KEY_SERVICES, Config.REDIS_DB_HOST,
-                Config.REDIS_DB_PORT, Config.TIMEOUT_FAILURE, Config.HEARTBEAT, Config.CACHE_MAX_AGE,
-                Config.KEYSTORE, Config.SSL));
-        LOGGER.info("Deploying " + Config.PROXY_INSTANCES + " of proxy server and redis access");
+
 
         Promise<String> proxyServerPromise = Promise.promise();
         Promise<String> redisAccessPromise = Promise.promise();
@@ -35,7 +30,6 @@ public class ProxyBootstrap extends AbstractVerticle {
         DeploymentOptions proxyDeployment = new DeploymentOptions().setInstances(Config.PROXY_INSTANCES);
         vertx.deployVerticle(RedisAccessVerticle.class, proxyDeployment, redisAccessPromise);
         redisAccessPromise.future().compose(serverDeploy -> {
-
             vertx.deployVerticle(ProxyServer.class, proxyDeployment, proxyServerPromise);
             return proxyServerPromise.future();
         }).compose(serverDeploy -> {

@@ -56,6 +56,9 @@ public class DiscoveryService {
             if (recordsAsync.succeeded() && !recordsAsync.result().isEmpty()) {
                 finalResult.complete(recordsAsync.result());
             } else {
+                if (recordsAsync.cause() != null) {
+                    recordsAsync.cause().printStackTrace();
+                }
                 finalResult.fail("Not found");
             }
         });

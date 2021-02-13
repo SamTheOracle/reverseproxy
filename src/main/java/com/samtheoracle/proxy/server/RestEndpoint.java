@@ -125,8 +125,8 @@ public abstract class RestEndpoint extends AbstractVerticle {
     protected ServiceDiscovery createDiscovery() {
         return ServiceDiscovery.create(vertx, new ServiceDiscoveryOptions()
                 .setName(UUID.randomUUID().toString())
-                .setBackendConfiguration(new JsonObject().put("host", Config.REDIS_DB_HOST)
-                        .put("port", Config.REDIS_DB_PORT)
+                .setBackendConfiguration(new JsonObject()
+                        .put("connectionString", String.format("redis://%s:%s", Config.REDIS_DB_HOST, Config.REDIS_DB_PORT))
                         .put("key", Config.REDIS_KEY_SERVICES)));
     }
 

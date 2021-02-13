@@ -25,4 +25,6 @@ public class Config {
         public static final Boolean HEALTHCHECK = Optional.of(Boolean.parseBoolean(System.getenv("HEALTHCHECK"))).orElse(false);
 
         private Config(){}
+
+
 }
