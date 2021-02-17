@@ -2,7 +2,7 @@ version: '2.3'
 
 services:
   apache:
-    container_name: apache
+    container_name: proxy_apache
     image: oracolo/apache
     mem_limit: 200MB
     ports:
