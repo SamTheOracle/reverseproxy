@@ -60,7 +60,7 @@ public class ProxyServer extends BaseProxy {
         MultiMap headers = httpServerRequest.headers();
         String uri = routingContext.get("uri");
         String root = routingContext.get("root");
-        proxyService.reroute("/" + root, uri, method, 1000, body, headers)
+        proxyService.reroute("/" + root, uri, method, Config.SERVICE_REQUEST_TIMEOUT, body, headers)
                 .onSuccess(httpResponseFromService -> {
                     Buffer bodyFromService = httpResponseFromService.body();
                     httpResponseFromService.headers().forEach(header -> httpServerResponse.putHeader(header.getKey(), header.getValue()));
@@ -94,7 +94,7 @@ public class ProxyServer extends BaseProxy {
         cacheService.findCachedResponse(uri).future().onSuccess(cacheResponse -> {
             LOGGER.info("Retrieving " + uri + " from redis");
             Ok(JsonObject.mapFrom(cacheResponse), new HashMap<>(), routingContext);
-        }).onFailure(cause -> proxyService.reroute("/" + root, uri, method, 1000, headers).onSuccess(httpResponseFromService -> {
+        }).onFailure(cause -> proxyService.reroute("/" + root, uri, method, Config.SERVICE_REQUEST_TIMEOUT, headers).onSuccess(httpResponseFromService -> {
             if (httpResponseFromService.statusCode() == HttpResponseStatus.OK.code()) {
                 Buffer responseBody = httpResponseFromService.body();
                 // send back result and cache in redis
