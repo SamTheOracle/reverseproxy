@@ -8,12 +8,20 @@ import io.vertx.ext.web.client.HttpResponse;
 import io.vertx.ext.web.client.WebClient;
 
 public class ProxyService {
+    private static ProxyService instance;
     private final WebClient client;
     private final DiscoveryService discoveryService;
 
-    public ProxyService(WebClient client, DiscoveryService discoveryService) {
+    private ProxyService(WebClient client, DiscoveryService discoveryService) {
         this.client = client;
         this.discoveryService = discoveryService;
+    }
+
+    public static ProxyService instance(WebClient client, DiscoveryService discoveryService) {
+        if (instance == null) {
+            instance = new ProxyService(client, discoveryService);
+        }
+        return instance;
     }
 
     public Future<HttpResponse<Buffer>> reroute(String root, String uri, HttpMethod method, int timeout, Buffer body, MultiMap headers) {

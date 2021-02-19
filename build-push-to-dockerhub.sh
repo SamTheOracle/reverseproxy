@@ -1,7 +1,7 @@
 #!/bin/bash
 docker-compose stop
 docker start localredis
-mvn clean install
+mvn clean install -DskipTests
 docker stop localredis
 cd apache
 docker build --tag oracolo/apache .

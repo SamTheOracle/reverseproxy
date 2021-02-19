@@ -1,9 +1,8 @@
 package com.samtheoracle.proxy.verticles;
 
 import com.samtheoracle.proxy.server.ProxyServer;
-import com.samtheoracle.proxy.server.RestEndpoint;
-import com.samtheoracle.proxy.utils.ClientUtils;
 import com.samtheoracle.proxy.utils.Config;
+import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.predicate.ResponsePredicate;
@@ -11,19 +10,21 @@ import io.vertx.servicediscovery.ServiceDiscovery;
 
 import java.util.logging.Logger;
 
-public class HealthCheckVerticle extends RestEndpoint {
+public class HealthCheckVerticle extends AbstractVerticle {
 
     private static final Logger LOGGER = Logger.getLogger(ProxyServer.class.getName());
+
     private ServiceDiscovery discovery;
-    private WebClient webClient;
+    private WebClient client;
 
     @Override
     public void start() throws Exception {
 
         LOGGER.info("Starting periodic health check");
-        discovery = createDiscovery();
-        webClient = ClientUtils.httpClient(vertx);
-        vertx.setPeriodic(Config.HEARTBEAT * 1000, this::health);
+
+        discovery = Config.discovery(vertx);
+        client = Config.httpClient(vertx);
+        vertx.setPeriodic(Config.HEARTBEAT * 1000L, this::health);
     }
 
     private void health(Long id) {
@@ -34,7 +35,7 @@ public class HealthCheckVerticle extends RestEndpoint {
                     int port = record.getLocation().getInteger("port");
                     String host = record.getLocation().getString("host");
                     LOGGER.info(String.format("making request to http://%s:%s/ping", host, port));
-                    webClient.get(port, host, "/ping").expect(ResponsePredicate.SC_OK).timeout(Config.TIMEOUT_FAILURE*1000)
+                    client.get(port, host, "/ping").expect(ResponsePredicate.SC_OK).timeout(Config.TIMEOUT_FAILURE * 1000L)
                             .send(asyncOp -> {
                                 if (asyncOp.failed()) {
                                     Promise<Void> p = Promise.promise();

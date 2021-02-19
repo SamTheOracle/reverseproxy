@@ -1,6 +1,6 @@
 package com.samtheoracle.proxy.utils;
 
-import com.samtheoracle.proxy.server.RestEndpoint;
+import com.samtheoracle.proxy.server.BaseProxy;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Promise;
 import io.vertx.core.buffer.Buffer;
@@ -8,7 +8,7 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 
-public class MockService1 extends RestEndpoint {
+public class MockService1 extends BaseProxy {
 
     public static final String PATH = "test";
 

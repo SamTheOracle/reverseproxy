@@ -18,7 +18,7 @@ public class StressTest {
 
         Vertx vertx = Vertx.vertx();
         WebClient client = WebClient.create(vertx);
-        IntStream.range(0, 30000).forEach(i -> {
+        IntStream.range(0, 50000).forEach(i -> {
 
             System.out.println("making http request " + i + "-th");
             client.getAbs("http://findmycar-proxy.com/proxy/api/v1/tracks/positions/508229488").send(event

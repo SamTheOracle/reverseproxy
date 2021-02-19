@@ -7,11 +7,19 @@ import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 
 public class CacheService {
+    private static CacheService instance;
     private final RedisService<CachedResponse> redis;
 
-    public CacheService(Vertx vertx) {
+    private CacheService(Vertx vertx) {
         this.redis = ServiceBuilder.create(vertx)
                 .redis(CachedResponse.class);
+    }
+
+    public static CacheService instance(Vertx vertx) {
+        if (instance == null) {
+            instance = new CacheService(vertx);
+        }
+        return instance;
     }
 
     public Promise<CachedResponse> findCachedResponse(String uri) {

@@ -19,10 +19,18 @@ import java.util.stream.Collectors;
 
 public class DiscoveryService {
 
+    private static DiscoveryService instance;
     private final ServiceDiscovery discovery;
 
-    public DiscoveryService(ServiceDiscovery discovery) {
+    private DiscoveryService(ServiceDiscovery discovery) {
         this.discovery = discovery;
+    }
+
+    public static DiscoveryService instance(ServiceDiscovery discovery) {
+        if (instance == null) {
+            instance = new DiscoveryService(discovery);
+        }
+        return instance;
     }
 
     public Promise<Record> createRecord(JsonObject recordJson) {
