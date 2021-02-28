@@ -22,13 +22,15 @@ public class StressTestVerticle extends AbstractVerticle {
         IntStream.range(0, 50000).forEach(i -> {
 
             System.out.println("making http request " + i + "-th");
-            client.getAbs("http://findmycar-proxy.com/proxy/api/v1/tracks/positions/508229488").send(event
-                    -> {
-                System.out.println("done with " + i + "-th request");
-                if (event.failed()) {
-                    System.out.println(event.cause().getMessage());
-                }
-            });
+            client.getAbs("http://findmycar-proxy.com/proxy/api/v1/tracks/positions/72370922-f9fe-4341-a546-f43e5f142e6d/last")
+                    .putHeader(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE.toString(), "30")
+                    .send(event
+                            -> {
+                        System.out.println("done with " + i + "-th request");
+                        if (event.failed()) {
+                            System.out.println(event.cause().getMessage());
+                        }
+                    });
             client.getAbs("http://findmycar-proxy.com/proxy/api/v1/users/telegram/508229488")
                     .putHeader(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE.toString(), "30").send(event -> {
                 System.out.println("done with " + i + "-th request");

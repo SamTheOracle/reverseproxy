@@ -49,9 +49,8 @@ public class HealthCheckVerticle extends AbstractVerticle {
                                         }
                                     });
                                     asyncOp.cause().printStackTrace();
-                                } else {
-                                    // LOGGER.info("Record " + record.toJson().encode() + " is UP");
-                                }
+                                }  // LOGGER.info("Record " + record.toJson().encode() + " is UP");
+
                             });
                 });
             }

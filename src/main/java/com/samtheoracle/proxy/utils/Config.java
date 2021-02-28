@@ -33,6 +33,7 @@ public class Config {
         public static final Boolean SSL = Optional.of(Boolean.parseBoolean(System.getenv("SSL"))).orElse(false);
 
         public static final Boolean HEALTHCHECK = Optional.of(Boolean.parseBoolean(System.getenv("HEALTHCHECK"))).orElse(false);
+
         private static WebClient client;
 
         public static ServiceDiscovery discovery(Vertx vertx) {

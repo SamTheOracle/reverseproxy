@@ -64,7 +64,6 @@ public class ProxyServer extends BaseProxy {
                 .onSuccess(httpResponseFromService -> {
                     Buffer bodyFromService = httpResponseFromService.body();
                     httpResponseFromService.headers().forEach(header -> httpServerResponse.putHeader(header.getKey(), header.getValue()));
-                    httpServerResponse.putHeader(HttpHeaderNames.FROM, "Proxy instance " + this).setStatusCode(httpResponseFromService.statusCode());
                     if (bodyFromService == null) {
                         httpServerResponse.end();
                     } else {
@@ -100,7 +99,7 @@ public class ProxyServer extends BaseProxy {
                 // send back result and cache in redis
                 int cacheAge = Math.min(Integer.parseInt(Optional.ofNullable(httpServerRequest.headers().get(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE)).orElse("0")),
                         Config.CACHE_MAX_AGE);
-                // if responsobody is not a JSON string, it breaks
+                // if response body is not a JSON string, it breaks
                 CachedResponse cachedResponse;
                 try {
                     cachedResponse = new CachedResponse(responseBody.toJson(), false);
@@ -112,20 +111,15 @@ public class ProxyServer extends BaseProxy {
                 httpResponseFromService.headers().forEach(header -> serverResponse.putHeader(header.getKey(), header.getValue()));
                 serverResponse.putHeader(HttpHeaderNames.CONTENT_LENGTH, String.valueOf(bytes));
                 serverResponse.setStatusCode(httpResponseFromService.statusCode())
-                        .putHeader(HttpHeaderNames.FROM, "Proxy instance " + this)
                         .end(httpServerResponseJson.toBuffer());
                 if (cacheAge != 0) {
-                    LOGGER.info(httpServerResponseJson.encodePrettily());
                     cachedResponse.setCached(true);
                     cacheService.saveCachedResponse(uri, cacheAge, cachedResponse).future()
                             .onSuccess(redis -> LOGGER.info("successfully cached get request " + uri))
                             .onFailure(reason -> LOGGER.info("could not cache in redis " + reason.getMessage()));
                 }
             } else {
-                JsonObject errorJson = new JsonObject().put("status", httpResponseFromService.statusCode())
-                        .put("error", Optional.ofNullable(httpResponseFromService.body()).orElse(Buffer.buffer("No error description from request " + uri)).toString());
-                serverResponse.putHeader(HttpHeaderNames.FROM, "Proxy instance " + this)
-                        .setStatusCode(httpResponseFromService.statusCode()).end(errorJson.encode());
+                serverResponse.setStatusCode(httpResponseFromService.statusCode()).end(Optional.ofNullable(httpResponseFromService.body()).orElse(Buffer.buffer("No error description from request " + uri)));
             }
         }));
     }
