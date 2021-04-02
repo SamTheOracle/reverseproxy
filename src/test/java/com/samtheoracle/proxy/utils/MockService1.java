@@ -1,6 +1,7 @@
 package com.samtheoracle.proxy.utils;
 
 import com.samtheoracle.proxy.server.BaseProxy;
+
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Promise;
 import io.vertx.core.buffer.Buffer;
@@ -23,10 +24,11 @@ public class MockService1 extends BaseProxy {
         router.delete("/" + PATH + "/deleteMethod").handler(this::handleDelete);
         vertx.createHttpServer().requestHandler(router).listen(9000, event -> {
             if (event.succeeded()) {
-                TestUtils.publishRecord(vertx, TestUtils.record(event.result().actualPort(), "testmicroservice", PATH))
-                        .future()
-                        .onSuccess(publishResponse -> startPromise.complete())
-                        .onFailure(startPromise::fail);
+                TestUtils.publishRecord(vertx, TestUtils.record(event.result().actualPort(), "testmicroservice", PATH)).onSuccess(
+                        publishResponse -> startPromise.complete()).onFailure(cause -> {
+                    cause.printStackTrace();
+                    startPromise.fail(cause);
+                });
             }
         });
 

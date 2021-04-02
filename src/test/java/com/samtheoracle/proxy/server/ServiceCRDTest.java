@@ -1,9 +1,21 @@
 package com.samtheoracle.proxy.server;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+
 import com.oracolo.database.redis.RedisAccessVerticle;
 import com.samtheoracle.proxy.search.ServiceSearchParameter;
 import com.samtheoracle.proxy.utils.MockService1;
 import com.samtheoracle.proxy.utils.TestUtils;
+
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
@@ -13,12 +25,6 @@ import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.predicate.ResponsePredicate;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
-import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.extension.ExtendWith;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @ExtendWith(VertxExtension.class)
 class ServiceCRDTest {
@@ -51,7 +57,6 @@ class ServiceCRDTest {
     @BeforeEach
     void publishRecord(Vertx vertx, VertxTestContext testContext) {
         TestUtils.publishRecord(vertx, TestUtils.record(1234, "randomservice", "/random"))
-                .future()
                 .onSuccess(response -> testContext.completeNow())
                 .onFailure(testContext::failNow);
     }

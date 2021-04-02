@@ -10,38 +10,27 @@ import io.vertx.ext.web.client.WebClient;
 public class ProxyService {
     private static ProxyService instance;
     private final WebClient client;
-    private final DiscoveryService discoveryService;
+    private final DiscoveryHelperService discoveryHelperService;
 
-    private ProxyService(WebClient client, DiscoveryService discoveryService) {
+    private ProxyService(WebClient client, DiscoveryHelperService discoveryHelperService) {
         this.client = client;
-        this.discoveryService = discoveryService;
+        this.discoveryHelperService = discoveryHelperService;
     }
 
-    public static ProxyService instance(WebClient client, DiscoveryService discoveryService) {
+    public static ProxyService instance(WebClient client, DiscoveryHelperService discoveryHelperService) {
         if (instance == null) {
-            instance = new ProxyService(client, discoveryService);
+            instance = new ProxyService(client, discoveryHelperService);
         }
         return instance;
     }
 
     public Future<HttpResponse<Buffer>> reroute(String root, String uri, HttpMethod method, int timeout, Buffer body, MultiMap headers) {
-        return discoveryService.getRecordByRoot(root).future()
-                .compose(record -> {
-                    int port = record.getLocation().getInteger("port");
-                    String host = record.getLocation().getString("host");
-                    return client.request(method, port, host, uri).putHeaders(headers).timeout(timeout).sendBuffer(body);
-                });
-
-    }
-
-    public Future<HttpResponse<Buffer>> reroute(String root, String uri, HttpMethod method, int timeout, MultiMap headers) {
-        return discoveryService.getRecordByRoot(root).future()
-                .compose(record -> {
-                    int port = record.getLocation().getInteger("port");
-                    String host = record.getLocation().getString("host");
-                    return client.request(method, port, host, uri).putHeaders(headers).timeout(timeout).send();
-                });
-
+        return discoveryHelperService.getRecordByRoot(root).compose(record -> {
+            int port = record.getLocation().getInteger("port");
+            String host = record.getLocation().getString("host");
+            return body == null ? client.request(method, port, host, uri).putHeaders(headers).timeout(timeout).send() :
+                    client.request(method, port, host, uri).putHeaders(headers).timeout(timeout).sendBuffer(body);
+        });
     }
 
 

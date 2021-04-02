@@ -1,6 +1,7 @@
 package com.samtheoracle.proxy.utils;
 
 import com.samtheoracle.proxy.server.BaseProxy;
+
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Promise;
 import io.vertx.core.buffer.Buffer;
@@ -25,7 +26,6 @@ public class MockService2 extends BaseProxy {
             if (event.succeeded()) {
                 if (event.succeeded()) {
                     TestUtils.publishRecord(vertx, TestUtils.record(event.result().actualPort(), "testmicroservice2", PATH))
-                            .future()
                             .onSuccess(publishResponse -> startPromise.complete())
                             .onFailure(startPromise::fail);
                 }
