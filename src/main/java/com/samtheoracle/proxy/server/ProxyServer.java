@@ -45,7 +45,6 @@ public class ProxyServer extends BaseProxy {
 				startPromise.complete();
 			}).onFailure(startPromise::fail);
 		}
-
 	}
 
 	private void handleRoutes(RoutingContext routingContext) {
