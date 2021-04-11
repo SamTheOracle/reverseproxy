@@ -2,6 +2,7 @@ package com.samtheorcle.proxy.stress;
 
 import com.samtheoracle.proxy.server.CachedResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Vertx;
@@ -22,8 +23,8 @@ public class StressTestVerticle extends AbstractVerticle {
         IntStream.range(0, 50000).forEach(i -> {
 
             System.out.println("making http request " + i + "-th");
-            client.getAbs("http://findmycar-proxy.com/proxy/api/v1/tracks/positions/72370922-f9fe-4341-a546-f43e5f142e6d/last")
-                    .putHeader(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE.toString(), "30")
+            client.getAbs("http://findmycar-proxy.com/proxy/api/v1/tracks/positions/9114a51f-45a7-47e8-a4db-171fc3bc241f/last")
+                    .putHeader(HttpHeaderNames.CACHE_CONTROL.toString(), "max-age=30")
                     .send(event
                             -> {
                         System.out.println("done with " + i + "-th request");
@@ -32,13 +33,13 @@ public class StressTestVerticle extends AbstractVerticle {
                         }
                     });
             client.getAbs("http://findmycar-proxy.com/proxy/api/v1/users/telegram/508229488")
-                    .putHeader(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE.toString(), "30").send(event -> {
+                    .putHeader(HttpHeaderNames.CACHE_CONTROL.toString(), HttpHeaderValues.MAX_AGE+"=30").send(event -> {
                 System.out.println("done with " + i + "-th request");
                 if (event.failed()) {
                     System.out.println(event.cause().getMessage());
                 }
             });
-            client.getAbs(REMOTE).putHeader(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE.toString(), "30").send(event -> {
+            client.getAbs(REMOTE).putHeader(HttpHeaderNames.CACHE_CONTROL.toString(), HttpHeaderValues.MAX_AGE.toString() + "=30").send(event -> {
                 System.out.println("done with " + i + "-th");
                 if (event.failed()) {
                     System.out.println(event.cause().getMessage());

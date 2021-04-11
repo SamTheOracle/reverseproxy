@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import com.oracolo.database.builder.ServiceBuilder;
@@ -18,6 +19,8 @@ import com.samtheoracle.proxy.utils.Config;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.circuitbreaker.CircuitBreaker;
+import io.vertx.circuitbreaker.CircuitBreakerOptions;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -36,6 +39,7 @@ import io.vertx.servicediscovery.Record;
 import io.vertx.servicediscovery.ServiceDiscovery;
 
 public abstract class BaseProxy extends AbstractVerticle {
+	private final Logger logger = Logger.getLogger(this.getClass().getName());
 
 	private static final String REGISTRATION_ID = "registrationId";
 	protected RedisService<CachedResponse> redis;
@@ -44,6 +48,33 @@ public abstract class BaseProxy extends AbstractVerticle {
 	protected Router router;
 	protected ServiceDiscovery discovery;
 	protected WebClient client;
+	protected CircuitBreaker circuitBreaker;
+
+	@Override
+	public void start() throws Exception {
+		super.start();
+		discovery = Config.discovery(vertx);
+		client = Config.httpClient(vertx);
+
+		CircuitBreakerOptions circuitBreakerOptions = new CircuitBreakerOptions().setMaxFailures(3).setResetTimeout(2000).setMaxRetries(
+				3).setTimeout(Config.TIMEOUT_FAILURE * 1000L);
+		circuitBreaker = CircuitBreaker.create("proxy-breaker", vertx, circuitBreakerOptions);
+		redis = ServiceBuilder.create(vertx).redis(CachedResponse.class);
+		discoveryHelperService = DiscoveryHelperService.create(discovery);
+		proxyService = ProxyService.instance(client, discoveryHelperService);
+
+		router = Router.router(vertx);
+		router.allowForward(AllowForwardHeaders.ALL);
+		router.route().handler(CorsHandler.create());
+		router.route().handler(BodyHandler.create());
+
+		router.get("/infos").handler(this::handleInfo);
+		router.post("/services").handler(this::handleServiceCreation);
+		router.get("/services").handler(this::handleGetServices);
+		router.get("/service/:" + REGISTRATION_ID).handler(this::handleGetServiceById);
+		router.delete("/services/all").handler(this::handleDeleteAllServices);
+		router.delete("/services/:" + REGISTRATION_ID).handler(this::handleDeleteById);
+	}
 
 	protected static void BadRequest(String message, RoutingContext routingContext) {
 		end(message, HttpResponseStatus.BAD_REQUEST.code(), routingContext);
@@ -99,29 +130,6 @@ public abstract class BaseProxy extends AbstractVerticle {
 		map.forEach(response::putHeader);
 		response.setStatusCode(code).end();
 
-	}
-
-	@Override
-	public void start() throws Exception {
-		super.start();
-		discovery = Config.discovery(vertx);
-		client = Config.httpClient(vertx);
-
-		redis = ServiceBuilder.create(vertx).redis(CachedResponse.class);
-		discoveryHelperService = DiscoveryHelperService.create(discovery);
-		proxyService = ProxyService.instance(client, discoveryHelperService);
-
-		router = Router.router(vertx);
-		router.allowForward(AllowForwardHeaders.ALL);
-		router.route().handler(CorsHandler.create("oracolo.reverseproxy").allowedHeaders(Collections.singleton("*")));
-		router.route().handler(BodyHandler.create());
-
-		router.get("/infos").handler(this::handleInfo);
-		router.post("/services").handler(this::handleServiceCreation);
-		router.get("/services").handler(this::handleGetServices);
-		router.get("/service/:" + REGISTRATION_ID).handler(this::handleGetServiceById);
-		router.delete("/services/all").handler(this::handleDeleteAllServices);
-		router.delete("/services/:" + REGISTRATION_ID).handler(this::handleDeleteById);
 	}
 
 	private void handleInfo(RoutingContext routingContext) {
@@ -192,6 +200,7 @@ public abstract class BaseProxy extends AbstractVerticle {
 
 		discoveryHelperService.createRecord(recordJson).onSuccess(record -> {
 			HashMap<String, String> headers = new HashMap<>();
+			logger.info("publishing record " + record.toJson().encodePrettily());
 			headers.put(HttpHeaderNames.CONTENT_TYPE.toString(), HttpHeaderValues.APPLICATION_JSON.toString());
 			//                    headers.put(HttpHeaderNames.LAST_MODIFIED.toString(), record.getMetadata().getString("creationDate"));
 			headers.put(HttpHeaderNames.LOCATION.toString(), routingContext.request().absoluteURI() + "/" + record.getRegistration());
@@ -208,28 +217,13 @@ public abstract class BaseProxy extends AbstractVerticle {
 		routingContext.response().setStatusCode(code).end(responseObject.encodePrettily());
 	}
 
-	protected Promise<HttpServer> createServer(int port, Router router, HttpServerOptions httpServerOptions) {
-		Promise<HttpServer> httpServerPromise = Promise.promise();
-		vertx.createHttpServer(httpServerOptions).requestHandler(router).listen(port, httpServerAsyncResult -> {
-			if (httpServerAsyncResult.succeeded()) {
-				httpServerPromise.complete(httpServerAsyncResult.result());
-			} else {
-				httpServerPromise.fail(httpServerAsyncResult.cause());
-			}
-		});
-		return httpServerPromise;
+	protected Future<HttpServer> createServer(Router router, HttpServerOptions httpServerOptions) {
+		return vertx.createHttpServer(httpServerOptions).requestHandler(router).listen(Config.PORT);
 	}
 
-	protected Promise<HttpServer> createServer(int port, Router router) {
+	protected Future<HttpServer> createServer(Router router) {
 		Promise<HttpServer> httpServerPromise = Promise.promise();
-		vertx.createHttpServer().requestHandler(router).listen(port, httpServerAsyncResult -> {
-			if (httpServerAsyncResult.succeeded()) {
-				httpServerPromise.complete(httpServerAsyncResult.result());
-			} else {
-				httpServerPromise.fail(httpServerAsyncResult.cause());
-			}
-		});
-		return httpServerPromise;
+		return vertx.createHttpServer().requestHandler(router).listen(Config.PORT);
 	}
 
 }

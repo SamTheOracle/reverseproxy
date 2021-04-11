@@ -17,7 +17,8 @@ services:
     environment:
       - REDIS_DB_HOST=redis
       - REDIS_DB_PORT=6379
-      - KEYSTORE_FILE_NAME=keystore.jks
+    volumes:
+      - ~/Documents/Personal/reverseproxy/certificates:/proxyconfig/certificates/
     depends_on:
       - redis
       - apache

@@ -20,7 +20,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 
 public class ProxyServer extends BaseProxy {
-	private static final Logger LOGGER = Logger.getLogger(ProxyServer.class.getName());
+	private final Logger logger = Logger.getLogger(this.getClass().getName());
 
 	@Override
 	public void start(Promise<Void> startPromise) throws Exception {
@@ -32,23 +32,23 @@ public class ProxyServer extends BaseProxy {
 		router.get(Config.ROOT_PATH + "/*").method(HttpMethod.GET).handler(this::handleGet);
 
 		if (Config.SSL) {
-			createServer(Config.PORT, router, SSLUtils.httpSSLServerOptions()).future().onSuccess(httpServer -> {
-				LOGGER.info("Server started on port " + httpServer.actualPort());
-				LOGGER.info("deployed at port " + Config.PORT + " with root path " + Config.ROOT_PATH);
+			createServer(router, SSLUtils.httpSSLServerOptions()).onSuccess(httpServer -> {
+				logger.info("Server started on port " + httpServer.actualPort());
+				logger.info("deployed at port " + Config.PORT + " with root path " + Config.ROOT_PATH);
 				startPromise.complete();
 			}).onFailure(startPromise::fail);
 		} else {
-			createServer(Config.PORT, router).future().onSuccess(httpServer -> {
-				LOGGER.info("Proxy Server Instance " + this);
-				LOGGER.info("Server started on port " + httpServer.actualPort());
-				LOGGER.info("deployed at port " + Config.PORT + " with root path " + Config.ROOT_PATH);
+			createServer(router).onSuccess(httpServer -> {
+				logger.info("Proxy Server Instance " + this);
+				logger.info("Server started on port " + httpServer.actualPort());
+				logger.info("deployed at port " + Config.PORT + " with root path " + Config.ROOT_PATH);
 				startPromise.complete();
 			}).onFailure(startPromise::fail);
 		}
 	}
 
 	private void handleRoutes(RoutingContext routingContext) {
-		LOGGER.info("handling request " + routingContext.request().method().name() + " " + routingContext.request().absoluteURI());
+		logger.info("handling request " + routingContext.request().method().name() + " " + routingContext.request().absoluteURI());
 		String uri = routingContext.request().uri().split(Config.ROOT_PATH)[1];
 		String root = uri.split("/")[1];
 
@@ -83,19 +83,19 @@ public class ProxyServer extends BaseProxy {
 		String uri = routingContext.get("uri");
 		String root = routingContext.get("root");
 		redis.get(uri).future().onSuccess(cacheResponse -> {
-			LOGGER.info("Retrieving " + uri + " from redis");
+			logger.info("Retrieving " + uri + " from redis");
 			Ok(JsonObject.mapFrom(cacheResponse), new HashMap<>(), routingContext);
-		}).onFailure(cause -> handleCacheGet(root, uri, method, headers, serverResponse));
+		}).onFailure(cause -> circuitBreaker.<Void>execute(promise -> handleCacheGet(root, uri, method, headers, serverResponse,promise)));
 	}
 
-	private void handleCacheGet(String root, String uri, HttpMethod method, MultiMap headers, HttpServerResponse serverResponse) {
+	private void handleCacheGet(String root, String uri, HttpMethod method, MultiMap headers, HttpServerResponse serverResponse, Promise<Void> circuitBreakerPromise) {
 		proxyService.reroute("/" + root, uri, method, Config.SERVICE_REQUEST_TIMEOUT, null, headers).onSuccess(httpResponseFromService -> {
 			if (httpResponseFromService.statusCode() == HttpResponseStatus.OK.code()) {
 				Buffer responseBody = httpResponseFromService.body();
 				// send back result and cache in redis
 				String maxAge = headers.get(HttpHeaderNames.CACHE_CONTROL);
 				int age;
-				if (maxAge.contains(HttpHeaderValues.MAX_AGE.toString() + "=")) {
+				if (maxAge != null && maxAge.contains(HttpHeaderValues.MAX_AGE.toString() + "=")) {
 					age = Integer.parseInt(maxAge.replace(HttpHeaderValues.MAX_AGE.toString() + "=", ""));
 				} else {
 					age = 0;
@@ -116,16 +116,21 @@ public class ProxyServer extends BaseProxy {
 				if (cacheAge != 0) {
 					cachedResponse.setCached(true);
 					redis.set(uri, cacheAge, cachedResponse).future().onSuccess(
-							redis -> LOGGER.info("successfully cached get request " + uri)).onFailure(
-							reason -> LOGGER.info("could not cache in redis " + reason.getMessage()));
+							redis -> logger.info("successfully cached get request " + uri)).onFailure(
+							reason -> logger.info("could not cache in redis " + reason.getMessage()));
 				}
 			} else {
 				serverResponse.setStatusCode(httpResponseFromService.statusCode()).end(
 						Optional.ofNullable(httpResponseFromService.body()).orElse(
 								Buffer.buffer("No error description from request " + uri)));
 			}
-		}).onFailure(reason -> serverResponse.setStatusCode(HttpResponseStatus.INTERNAL_SERVER_ERROR.code()).end(
-				"Error processing request " + uri));
+			circuitBreakerPromise.complete();
+		}).onFailure(reason -> {
+			reason.printStackTrace();
+			serverResponse.setStatusCode(HttpResponseStatus.INTERNAL_SERVER_ERROR.code()).end(
+					"Error processing request " + uri + ". Reason: " + reason.getMessage());
+			circuitBreakerPromise.complete();
+		});
 	}
 
 }

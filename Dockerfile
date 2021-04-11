@@ -1,14 +1,14 @@
 FROM openjdk:11
 
 ENV VERTICLE_FILE reverseproxy-1.0-SNAPSHOT-fat.jar
-ENV VERTICLE_HOME /usr/verticles
 
 EXPOSE 8080
 
-COPY target/$VERTICLE_FILE $VERTICLE_HOME/
-
-WORKDIR $VERTICLE_HOME
+COPY target/$VERTICLE_FILE proxyconfig/
 
 ENTRYPOINT ["sh", "-c"]
 
-CMD ["exec java -Xmx300m -jar $VERTICLE_FILE"]
+
+RUN mkdir proxyconfig/certificates
+
+CMD ["exec java -Xmx300m -jar proxyconfig/$VERTICLE_FILE"]

@@ -1,7 +1,6 @@
 # Vertx Proxy
 
-This proxy is developed using Vertx ServiceDiscovery and Vertx HealthChecks.
-On startup, two web servers are started, the proxy and healthcheck.
+This proxy is developed using Vertx ServiceDiscovery. On startup, two web servers are started, the proxy and healthcheck.
 
 ## Proxy
 Proxy allows to add, get and delete services. In addition it proxies http requests to available services, caching if specified by header Access-Control-Max-Age.

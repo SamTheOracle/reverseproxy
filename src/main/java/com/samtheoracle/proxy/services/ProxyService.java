@@ -29,7 +29,7 @@ public class ProxyService {
             int port = record.getLocation().getInteger("port");
             String host = record.getLocation().getString("host");
             return body == null ? client.request(method, port, host, uri).putHeaders(headers).timeout(timeout).send() :
-                    client.request(method, port, host, uri).putHeaders(headers).timeout(timeout).sendBuffer(body);
+                    client.request(method, port, host, uri).putHeaders(headers).sendBuffer(body);
         });
     }
 

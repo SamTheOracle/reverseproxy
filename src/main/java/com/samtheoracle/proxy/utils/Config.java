@@ -1,5 +1,8 @@
 package com.samtheoracle.proxy.utils;
 
+import java.util.Optional;
+import java.util.UUID;
+
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.client.WebClient;
@@ -7,12 +10,10 @@ import io.vertx.ext.web.client.WebClientOptions;
 import io.vertx.servicediscovery.ServiceDiscovery;
 import io.vertx.servicediscovery.ServiceDiscoveryOptions;
 
-import java.util.Optional;
-import java.util.UUID;
-
 public class Config {
 
-        public static final int SERVICE_REQUEST_TIMEOUT = Integer.parseInt(Optional.ofNullable(System.getenv("SERVICE_REQUEST_TIMEOUT_MILL")).orElse("1000"));
+        public static final int SERVICE_REQUEST_TIMEOUT = Integer.parseInt(
+                Optional.ofNullable(System.getenv("SERVICE_REQUEST_TIMEOUT_MILL")).orElse("2000"));
 
         public final static int PROXY_INSTANCES = Runtime.getRuntime().availableProcessors() * 2;
         public static final String ROOT_PATH = Optional.ofNullable(System.getenv("ROOT_PATH")).orElse("/api/v1");
@@ -35,6 +36,8 @@ public class Config {
         public static final Boolean HEALTHCHECK = Optional.of(Boolean.parseBoolean(System.getenv("HEALTHCHECK"))).orElse(false);
 
         private static WebClient client;
+
+        private static ServiceDiscovery discovery;
 
         public static ServiceDiscovery discovery(Vertx vertx) {
                 return ServiceDiscovery.create(vertx, new ServiceDiscoveryOptions()

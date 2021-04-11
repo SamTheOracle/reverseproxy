@@ -183,7 +183,7 @@ public class DiscoveryHelperService {
 		});
 
 		return discovery.getRecords(record -> conditions.stream().allMatch(recordPredicate -> recordPredicate.test(record))).compose(
-				records -> records.isEmpty() ? Future.failedFuture("No service") : Future.succeededFuture(records));
+				records -> records == null || records.isEmpty() ? Future.failedFuture("No service") : Future.succeededFuture(records));
 	}
 
 	public Future<Void> deleteAllRecords() {
@@ -202,11 +202,13 @@ public class DiscoveryHelperService {
 	}
 
 	public Future<Record> getRecordByRoot(String root) {
-		return discovery.getRecord(record -> record.getLocation().getString("root").equals(root));
+		return discovery.getRecord(record -> record.getLocation().getString("root").equals(root)).compose(
+				record -> record == null ? Future.failedFuture("No service found") : Future.succeededFuture(record));
 	}
 
 	public Future<Record> getRecordByRegistration(String registration) {
-		return discovery.getRecord(record -> record.getRegistration().equals(registration));
+		return discovery.getRecord(record -> record.getRegistration().equals(registration)).compose(
+				record -> record == null ? Future.failedFuture("No service found") : Future.succeededFuture(record));
 	}
 
 	public Future<Void> deleteRecordByRegistration(String registration) {
