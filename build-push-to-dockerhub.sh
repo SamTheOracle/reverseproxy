@@ -9,3 +9,6 @@ docker push oracolo/apache
 cd ..
 docker build --tag oracolo/proxy .
 docker push oracolo/proxy
+
+cd arm
+./build-and-push-arm.sh

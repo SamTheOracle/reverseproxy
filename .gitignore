@@ -185,3 +185,4 @@ nbdist/
 !.vscode/extensions.json
 .vscode
 *.classpath
+arm/proxy/reverseproxy-1.0-SNAPSHOT-fat.jar
