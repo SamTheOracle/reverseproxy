@@ -9,8 +9,10 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.utility.DockerImageName;
 
-import com.oracolo.database.redis.RedisAccessVerticle;
+import com.oracolo.database.redis.RedisOptions;
 import com.samtheoracle.proxy.utils.MockService1;
 
 import io.netty.handler.codec.http.HttpHeaderNames;
@@ -27,17 +29,25 @@ import io.vertx.junit5.VertxTestContext;
 
 @ExtendWith(VertxExtension.class)
 class ProxyRerouteTest {
+	private static final int REDIS_PORT = 6379;
+	private static final GenericContainer<?> redisContainer = new GenericContainer<>(DockerImageName.parse("redis:6.2.2")).withExposedPorts(
+			REDIS_PORT);
 
 	@BeforeAll
 	static void setUp(Vertx vertx, VertxTestContext testContext) {
-		vertx.deployVerticle(new RedisAccessVerticle(), redisAsync -> vertx.deployVerticle(new ProxyServer(),
+		redisContainer.start();
+		RedisOptions redisOptions = new RedisOptions();
+		int port = redisContainer.getMappedPort(REDIS_PORT);
+		String host = redisContainer.getHost();
+
+		vertx.deployVerticle(new ProxyServer(redisOptions.setHost(host).setPort(port)),
 				proxyAsync -> WebClient.create(vertx).delete(8080, "localhost", "/services/all").send(responseAsync -> {
 					if (responseAsync.succeeded()) {
 						vertx.deployVerticle(new MockService1(), testContext.succeedingThenComplete());
 					} else {
 						testContext.failNow(responseAsync.cause());
 					}
-				})));
+				}));
 
 	}
 
@@ -52,6 +62,7 @@ class ProxyRerouteTest {
 		});
 		CompositeFuture.all(undeployPromises.stream().map(Promise::future).collect(Collectors.toList())).onComplete(
 				event -> testContext.completeNow());
+		redisContainer.stop();
 	}
 
 	@Test
@@ -73,10 +84,10 @@ class ProxyRerouteTest {
 		WebClient client = WebClient.create(vertx);
 
 		client.get(8080, "localhost", "/api/v1/" + MockService1.PATH + "/welcome").expect(ResponsePredicate.SC_OK).putHeader(
-				HttpHeaderNames.CACHE_CONTROL.toString(), HttpHeaderValues.MAX_AGE.toString() + "=30").send().compose(
+				HttpHeaderNames.CACHE_CONTROL.toString(), HttpHeaderValues.MAX_AGE + "=30").send().compose(
 				response -> client.get(8080, "localhost", "/api/v1/" + MockService1.PATH + "/welcome").expect(
 						ResponsePredicate.SC_OK).putHeader(HttpHeaderNames.CACHE_CONTROL.toString(),
-						HttpHeaderValues.MAX_AGE.toString() + "=30").send()).onSuccess(
+						HttpHeaderValues.MAX_AGE + "=30").send()).onSuccess(
 				httpResponse -> testContext.verify(() -> Assertions.assertDoesNotThrow(httpResponse::bodyAsJsonObject)).verify(
 						() -> Assertions.assertDoesNotThrow(
 								() -> Json.decodeValue(httpResponse.body(), CachedResponse.class))).completeNow()).onFailure(

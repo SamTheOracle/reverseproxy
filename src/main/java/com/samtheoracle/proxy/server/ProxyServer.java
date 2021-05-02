@@ -4,16 +4,19 @@ import java.util.HashMap;
 import java.util.Optional;
 import java.util.logging.Logger;
 
+import com.oracolo.database.redis.RedisOptions;
 import com.samtheoracle.proxy.utils.Config;
 import com.samtheoracle.proxy.utils.SSLUtils;
 
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.core.Future;
 import io.vertx.core.MultiMap;
 import io.vertx.core.Promise;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
+import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonObject;
@@ -21,6 +24,14 @@ import io.vertx.ext.web.RoutingContext;
 
 public class ProxyServer extends BaseProxy {
 	private final Logger logger = Logger.getLogger(this.getClass().getName());
+
+	public ProxyServer(RedisOptions redisOptions) {
+		super(redisOptions);
+	}
+
+	public ProxyServer() {
+		super();
+	}
 
 	@Override
 	public void start(Promise<Void> startPromise) throws Exception {
@@ -30,21 +41,21 @@ public class ProxyServer extends BaseProxy {
 		router.route(Config.ROOT_PATH + "/*").method(HttpMethod.DELETE).method(HttpMethod.POST).method(HttpMethod.PUT).handler(
 				this::simpleReroute);
 		router.get(Config.ROOT_PATH + "/*").method(HttpMethod.GET).handler(this::handleGet);
-
+		Future<HttpServer> serverCreationFuture;
 		if (Config.SSL) {
-			createServer(router, SSLUtils.httpSSLServerOptions()).onSuccess(httpServer -> {
-				logger.info("Server started on port " + httpServer.actualPort());
-				logger.info("deployed at port " + Config.PORT + " with root path " + Config.ROOT_PATH);
-				startPromise.complete();
-			}).onFailure(startPromise::fail);
+			serverCreationFuture = createServer(router, SSLUtils.httpSSLServerOptions());
 		} else {
-			createServer(router).onSuccess(httpServer -> {
-				logger.info("Proxy Server Instance " + this);
-				logger.info("Server started on port " + httpServer.actualPort());
-				logger.info("deployed at port " + Config.PORT + " with root path " + Config.ROOT_PATH);
-				startPromise.complete();
-			}).onFailure(startPromise::fail);
+			serverCreationFuture = createServer(router);
 		}
+		serverCreationFuture.compose(httpServer -> {
+			logger.info("Proxy Server Instance " + this);
+			logger.info("Server started on port " + httpServer.actualPort());
+			logger.info("deployed at port " + Config.PORT + " with root path " + Config.ROOT_PATH);
+			return redis.connect(vertx);
+		}).onFailure(cause -> {
+			logger.severe("Failed to start server: " + cause.getMessage());
+			startPromise.fail(cause);
+		}).onSuccess(event -> startPromise.complete());
 	}
 
 	private void handleRoutes(RoutingContext routingContext) {
@@ -70,7 +81,13 @@ public class ProxyServer extends BaseProxy {
 			if (bodyFromService == null) {
 				httpServerResponse.end();
 			} else {
-				httpServerResponse.end(bodyFromService);
+				CachedResponse cachedResponse;
+				try {
+					cachedResponse = new CachedResponse(httpResponseFromService.body().toJson(), false);
+				} catch (Exception e) {
+					cachedResponse = new CachedResponse(httpResponseFromService.body(), false);
+				}
+				httpServerResponse.end(JsonObject.mapFrom(cachedResponse).encode());
 			}
 		}).onFailure(cause -> ServerError(cause.getMessage(), routingContext));
 	}
@@ -82,10 +99,10 @@ public class ProxyServer extends BaseProxy {
 		HttpServerResponse serverResponse = routingContext.response();
 		String uri = routingContext.get("uri");
 		String root = routingContext.get("root");
-		redis.get(uri).future().onSuccess(cacheResponse -> {
+		redis.get(uri).onSuccess(cacheResponse -> {
 			logger.info("Retrieving " + uri + " from redis");
 			Ok(JsonObject.mapFrom(cacheResponse), new HashMap<>(), routingContext);
-		}).onFailure(cause -> circuitBreaker.<Void>execute(promise -> handleCacheGet(root, uri, method, headers, serverResponse,promise)));
+		}).onFailure(cause -> circuitBreaker.<Void>execute(promise -> handleCacheGet(root, uri, method, headers, serverResponse, promise)));
 	}
 
 	private void handleCacheGet(String root, String uri, HttpMethod method, MultiMap headers, HttpServerResponse serverResponse, Promise<Void> circuitBreakerPromise) {
@@ -95,8 +112,8 @@ public class ProxyServer extends BaseProxy {
 				// send back result and cache in redis
 				String maxAge = headers.get(HttpHeaderNames.CACHE_CONTROL);
 				int age;
-				if (maxAge != null && maxAge.contains(HttpHeaderValues.MAX_AGE.toString() + "=")) {
-					age = Integer.parseInt(maxAge.replace(HttpHeaderValues.MAX_AGE.toString() + "=", ""));
+				if (maxAge != null && maxAge.contains(HttpHeaderValues.MAX_AGE + "=")) {
+					age = Integer.parseInt(maxAge.replace(HttpHeaderValues.MAX_AGE + "=", ""));
 				} else {
 					age = 0;
 				}
@@ -115,7 +132,7 @@ public class ProxyServer extends BaseProxy {
 				serverResponse.setStatusCode(httpResponseFromService.statusCode()).end(httpServerResponseJson.toBuffer());
 				if (cacheAge != 0) {
 					cachedResponse.setCached(true);
-					redis.set(uri, cacheAge, cachedResponse).future().onSuccess(
+					redis.set(uri, cacheAge, cachedResponse).onSuccess(
 							redis -> logger.info("successfully cached get request " + uri)).onFailure(
 							reason -> logger.info("could not cache in redis " + reason.getMessage()));
 				}

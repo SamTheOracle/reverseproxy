@@ -9,7 +9,8 @@ import java.util.function.Function;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
-import com.oracolo.database.builder.ServiceBuilder;
+import com.oracolo.database.ServiceBuilder;
+import com.oracolo.database.redis.RedisOptions;
 import com.oracolo.database.redis.RedisService;
 import com.samtheoracle.proxy.search.ServiceSearchParameter;
 import com.samtheoracle.proxy.services.DiscoveryHelperService;
@@ -42,6 +43,7 @@ public abstract class BaseProxy extends AbstractVerticle {
 	private final Logger logger = Logger.getLogger(this.getClass().getName());
 
 	private static final String REGISTRATION_ID = "registrationId";
+	private final RedisOptions redisOptions;
 	protected RedisService<CachedResponse> redis;
 	protected DiscoveryHelperService discoveryHelperService;
 	protected ProxyService proxyService;
@@ -50,16 +52,24 @@ public abstract class BaseProxy extends AbstractVerticle {
 	protected WebClient client;
 	protected CircuitBreaker circuitBreaker;
 
+	protected BaseProxy(RedisOptions redisOptions) {
+		this.redisOptions = redisOptions;
+	}
+
+	protected BaseProxy() {
+		this.redisOptions = new RedisOptions();
+	}
+
 	@Override
 	public void start() throws Exception {
 		super.start();
-		discovery = Config.discovery(vertx);
+		discovery = Config.discovery(vertx, redisOptions);
 		client = Config.httpClient(vertx);
 
 		CircuitBreakerOptions circuitBreakerOptions = new CircuitBreakerOptions().setMaxFailures(3).setResetTimeout(2000).setMaxRetries(
 				3).setTimeout(Config.TIMEOUT_FAILURE * 1000L);
 		circuitBreaker = CircuitBreaker.create("proxy-breaker", vertx, circuitBreakerOptions);
-		redis = ServiceBuilder.create(vertx).redis(CachedResponse.class);
+		redis = ServiceBuilder.create(vertx).redis(CachedResponse.class, redisOptions);
 		discoveryHelperService = DiscoveryHelperService.create(discovery);
 		proxyService = ProxyService.instance(client, discoveryHelperService);
 
@@ -202,7 +212,6 @@ public abstract class BaseProxy extends AbstractVerticle {
 			HashMap<String, String> headers = new HashMap<>();
 			logger.info("publishing record " + record.toJson().encodePrettily());
 			headers.put(HttpHeaderNames.CONTENT_TYPE.toString(), HttpHeaderValues.APPLICATION_JSON.toString());
-			//                    headers.put(HttpHeaderNames.LAST_MODIFIED.toString(), record.getMetadata().getString("creationDate"));
 			headers.put(HttpHeaderNames.LOCATION.toString(), routingContext.request().absoluteURI() + "/" + record.getRegistration());
 			Created(JsonObject.mapFrom(record), headers, routingContext);
 		}).onFailure(cause -> BadRequest(cause.getMessage(), routingContext));
